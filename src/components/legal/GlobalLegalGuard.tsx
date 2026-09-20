@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, FileSignature } from 'lucide-react';
+import { ID, Permission, Query, Role } from 'appwrite';
+import { tablesDB, DB_ID, SIGNATURES_TABLE } from '../../lib/appwrite';
 
 interface LegalGuardProps {
   children: React.ReactNode;
@@ -8,15 +10,48 @@ interface LegalGuardProps {
 }
 
 export default function GlobalLegalGuard({ children, userId, userRole }: LegalGuardProps) {
-  const [isCleared, setIsCleared] = useState<boolean>(false);
+  const [status, setStatus] = useState<'checking' | 'needed' | 'cleared'>('checking');
   const [fullName, setFullName] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const handleSignatureSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    tablesDB
+      .listRows({
+        databaseId: DB_ID,
+        tableId: SIGNATURES_TABLE,
+        queries: [Query.equal('userId', userId), Query.limit(1)],
+      })
+      .then((res) => setStatus(res.total > 0 ? 'cleared' : 'needed'))
+      .catch(() => {
+        setError('Could not check your agreement status. Please refresh.');
+        setStatus('needed');
+      });
+  }, [userId]);
+
+  const handleSignatureSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (fullName.trim()) setIsCleared(true);
+    if (!fullName.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      await tablesDB.createRow({
+        databaseId: DB_ID,
+        tableId: SIGNATURES_TABLE,
+        rowId: ID.unique(),
+        data: { userId, fullName: fullName.trim(), role: userRole },
+        permissions: [Permission.read(Role.user(userId))],
+      });
+      setStatus('cleared');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save your signature');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (isCleared) return <>{children}</>;
+  if (status === 'cleared') return <>{children}</>;
+  if (status === 'checking') return <div className="h-screen w-screen bg-slate-50" />;
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
@@ -42,8 +77,9 @@ export default function GlobalLegalGuard({ children, userId, userRole }: LegalGu
               onChange={(e) => setFullName(e.target.value)}
               className="w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-slate-950 text-sm font-medium"
             />
-            <button type="submit" className="w-full bg-slate-950 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2">
-              <FileSignature size={16} /> Authorize & Access System Pipelines
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <button type="submit" disabled={busy} className="w-full bg-slate-950 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50">
+              <FileSignature size={16} /> {busy ? 'Saving...' : 'Authorize & Access System Pipelines'}
             </button>
           </form>
         </div>
