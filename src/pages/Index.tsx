@@ -6,7 +6,7 @@ const industries = [
   { id: 'construction', name: 'Construction', pros: '890 pros', icon: '🏗️' },
   { id: 'healthcare', name: 'Healthcare', pros: '670 pros', icon: '🏥' },
   { id: 'retail', name: 'Retail', pros: '1,520 pros', icon: '🛍️' },
-  { id: 'logistics', name: 'Logistics', pros: '📦' },
+  { id: 'logistics', name: 'Logistics', pros: '780 pros', icon: '📦' },
   { id: 'events', name: 'Events', pros: '540 pros', icon: '🎉' },
 ];
 
