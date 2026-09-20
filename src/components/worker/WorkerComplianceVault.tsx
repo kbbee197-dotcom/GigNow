@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, UploadCloud } from 'lucide-react';
 import { ID, Permission, Query, Role } from 'appwrite';
-import { storage, tablesDB, DB_ID, DOCS_TABLE, DOCS_BUCKET } from '../../lib/appwrite';
+import { storage, tablesDB, DB_ID, DOCS_TABLE, DOCS_BUCKET, REVIEWS_TABLE } from '../../lib/appwrite';
 import { useAuth } from '../../lib/AuthContext';
 
 const DOC_TYPES = [
@@ -16,6 +16,7 @@ export default function WorkerComplianceVault() {
   const [docType, setDocType] = useState(DOC_TYPES[0].value);
   const [file, setFile] = useState<File | null>(null);
   const [docs, setDocs] = useState<DocRow[]>([]);
+  const [reviews, setReviews] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -28,6 +29,14 @@ export default function WorkerComplianceVault() {
         queries: [Query.equal('userId', user.$id), Query.orderDesc('$createdAt')],
       });
       setDocs(res.rows as unknown as DocRow[]);
+      const rev = await tablesDB.listRows({
+        databaseId: DB_ID,
+        tableId: REVIEWS_TABLE,
+        queries: [Query.equal('userId', user.$id)],
+      });
+      const map: Record<string, string> = {};
+      for (const r of rev.rows as unknown as { documentId: string; decision: string }[]) map[r.documentId] = r.decision;
+      setReviews(map);
     } catch {
       setError('Could not load your documents.');
     }
@@ -90,7 +99,7 @@ export default function WorkerComplianceVault() {
           <li key={d.$id} className="p-3 border rounded-xl text-sm flex flex-col gap-1">
             <span className="font-bold text-slate-800 break-all">{d.fileName}</span>
             <span className="text-xs text-slate-500">
-              {DOC_TYPES.find((t) => t.value === d.docType)?.label ?? d.docType} · Awaiting review
+              {DOC_TYPES.find((t) => t.value === d.docType)?.label ?? d.docType} · {reviews[d.$id] === 'approved' ? 'Approved' : reviews[d.$id] === 'rejected' ? 'Rejected - please upload a new one' : 'Awaiting review'}
             </span>
           </li>
         ))}
