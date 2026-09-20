@@ -9,7 +9,7 @@ export default function AuthenticatedLayout() {
   if (loading) return <div className="h-screen w-screen bg-slate-50" />
   if (!user) return <Navigate to="/login" replace />
 
-  const role = user.prefs?.role === 'employer' ? 'employer' : 'worker'
+  const role = (user.prefs as { role?: string }).role === 'employer' ? 'employer' : 'worker'
 
   return (
     <GlobalLegalGuard userId={user.$id} userRole={role}>
