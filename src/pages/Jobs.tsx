@@ -6,7 +6,7 @@ import { callAction } from '../lib/api'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 
-type Job = { $id: string; employerId: string; title: string; industry: string; description?: string }
+type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceRadius?: number }
 type Row = { $id: string; jobId: string; workerId: string; workerName?: string }
 
 export default function Jobs() {
@@ -18,6 +18,9 @@ export default function Jobs() {
   const [title, setTitle] = useState('')
   const [industry, setIndustry] = useState(INDUSTRIES[0])
   const [description, setDescription] = useState('')
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [radius, setRadius] = useState('200')
+  const [locMsg, setLocMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,6 +45,18 @@ export default function Jobs() {
     loadJobs()
   }, [])
 
+  function grabLocation() {
+    setLocMsg('Getting location...')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setLocMsg('Location saved for this job')
+      },
+      () => setLocMsg('Could not get location. Allow location access and try again.'),
+      { enableHighAccuracy: true, timeout: 15000 },
+    )
+  }
+
   async function handlePost(e: React.FormEvent) {
     e.preventDefault()
     if (!user) return
@@ -53,11 +68,13 @@ export default function Jobs() {
         databaseId: DB_ID,
         tableId: JOBS_TABLE,
         rowId: ID.unique(),
-        data: { employerId: user.$id, title: title.trim(), industry, description: description.trim(), status: 'open' },
+        data: { employerId: user.$id, title: title.trim(), industry, description: description.trim(), status: 'open', ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}) },
         permissions: owner,
       })
       setTitle('')
       setDescription('')
+      setCoords(null)
+      setLocMsg('')
       await loadJobs()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not post job')
@@ -101,6 +118,13 @@ export default function Jobs() {
             ))}
           </select>
           <textarea className="w-full border border-slate-200 rounded-xl p-3 text-sm" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} />
+          <div className="space-y-2">
+            <button type="button" onClick={grabLocation} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-300">Use my current location as the job site</button>
+            {coords && (
+              <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" type="number" min="50" placeholder="Clock-in radius in meters" value={radius} onChange={(e) => setRadius(e.target.value)} />
+            )}
+            {locMsg && <p className="text-xs text-slate-500">{locMsg}</p>}
+          </div>
           <button type="submit" disabled={busy} className="bg-slate-900 text-white text-sm font-bold px-4 py-2 rounded-lg disabled:opacity-50">
             {busy ? 'Posting...' : 'Post job'}
           </button>
@@ -113,6 +137,7 @@ export default function Jobs() {
           <li key={j.$id} className="p-4 bg-white border border-slate-200 rounded-2xl">
             <div className="font-bold text-slate-900">{j.title}</div>
             <div className="text-xs text-slate-500">{j.industry}</div>
+            {j.geofenceLat != null && <div className="text-xs text-emerald-700">Job site set · {j.geofenceRadius ?? 200} m clock-in radius</div>}
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}
             {!isEmployer && (
               hires.some((h) => h.jobId === j.$id) ? (
