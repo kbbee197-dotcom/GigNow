@@ -22,6 +22,7 @@ export default function AuthenticatedLayout() {
             <Link className={link} to="/dashboard/jobs">Jobs</Link>
             <Link className={link} to="/dashboard/compliance">Documents</Link>
             <Link className={link} to="/dashboard/clock-in">Clock in</Link>
+            <Link className={link} to="/dashboard/shifts">Approve shifts</Link>
             {isAdmin && <Link className={link} to="/dashboard/admin">Admin</Link>}
             {isAdmin && <Link className={link} to="/dashboard/admin/documents">Review docs</Link>}
           </nav>

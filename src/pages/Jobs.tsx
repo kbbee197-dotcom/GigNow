@@ -20,6 +20,7 @@ export default function Jobs() {
   const [description, setDescription] = useState('')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [radius, setRadius] = useState('200')
+  const [payRate, setPayRate] = useState('')
   const [locMsg, setLocMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -68,12 +69,13 @@ export default function Jobs() {
         databaseId: DB_ID,
         tableId: JOBS_TABLE,
         rowId: ID.unique(),
-        data: { employerId: user.$id, title: title.trim(), industry, description: description.trim(), status: 'open', ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}) },
+        data: { employerId: user.$id, title: title.trim(), industry, description: description.trim(), status: 'open', ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}), ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}) },
         permissions: owner,
       })
       setTitle('')
       setDescription('')
       setCoords(null)
+      setPayRate('')
       setLocMsg('')
       await loadJobs()
     } catch (err) {
@@ -117,6 +119,7 @@ export default function Jobs() {
               <option key={i} value={i}>{i}</option>
             ))}
           </select>
+          <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" type="number" min="0" step="0.01" placeholder="Hourly pay rate ($)" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
           <textarea className="w-full border border-slate-200 rounded-xl p-3 text-sm" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} />
           <div className="space-y-2">
             <button type="button" onClick={grabLocation} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-300">Use my current location as the job site</button>

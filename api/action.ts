@@ -2,6 +2,15 @@ import { Account, Client, ID, Permission, Query, Role, TablesDB } from 'node-app
 
 const DB_ID = 'gignow'
 
+const FEE_RATES: Record<string, number> = {
+  'Healthcare': 0.15,
+  'Logistics & Warehousing': 0.12,
+  'Hospitality & Catering': 0.14,
+  'Retail & E-commerce': 0.10,
+  'Construction & Facilities': 0.13,
+  'Events': 0.10,
+}
+
 function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
   const r = 6371000
   const rad = (d: number) => (d * Math.PI) / 180
@@ -124,6 +133,26 @@ export default async function handler(req: any, res: any) {
         tableId: 'work_logs',
         rowId: log.$id,
         data: { status: 'done', clockOutAt: new Date().toISOString(), hoursWorked: hours },
+      })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'approve_shift') {
+      const log: any = await db.getRow({ databaseId: DB_ID, tableId: 'work_logs', rowId: body.logId })
+      if (log.employerId !== caller.$id) return res.status(403).json({ error: 'Only the employer can approve this shift' })
+      if (log.status !== 'done') return res.status(400).json({ error: 'Shift is not ready to approve' })
+      const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: log.jobId })
+      const rate = Number(job.payRateCents)
+      if (!Number.isFinite(rate) || rate <= 0) return res.status(400).json({ error: 'This job has no pay rate set' })
+      const feeRate = FEE_RATES[job.industry] ?? 0.10
+      const grossCents = Math.round(Number(log.hoursWorked) * rate)
+      const feeCents = Math.round(grossCents * feeRate)
+      const netCents = grossCents - feeCents
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'work_logs',
+        rowId: log.$id,
+        data: { status: 'approved', grossCents, feeCents, netCents, feeRate, approvedAt: new Date().toISOString() },
       })
       return res.status(200).json({ ok: true })
     }
