@@ -54,7 +54,7 @@ export default function Jobs() {
         setLocMsg('Location saved for this job')
       },
       (e) => setLocMsg('Could not get location: ' + e.message + ' (code ' + e.code + ')'),
-      { enableHighAccuracy: true, timeout: 15000 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     )
   }
 
