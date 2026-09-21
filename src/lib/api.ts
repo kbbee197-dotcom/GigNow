@@ -8,5 +8,5 @@ export async function callAction(payload: Record<string, unknown>) {
     body: JSON.stringify(payload),
   })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || 'Request failed')
+  if (!res.ok) throw new Error(data.error || 'Request failed (HTTP ' + res.status + ')')
 }

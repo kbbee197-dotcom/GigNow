@@ -33,8 +33,8 @@ export default function Jobs() {
       setApps(a.rows as unknown as Row[])
       const h = await tablesDB.listRows({ databaseId: DB_ID, tableId: HIRES_TABLE, queries: [Query.limit(100)] })
       setHires(h.rows as unknown as Row[])
-    } catch {
-      setError('Could not load jobs.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not load jobs.')
     }
   }
 
