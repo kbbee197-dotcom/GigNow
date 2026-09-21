@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react'
 import { ID, Permission, Query, Role } from 'appwrite'
-import { tablesDB, DB_ID, JOBS_TABLE } from '../lib/appwrite'
+import { tablesDB, DB_ID, JOBS_TABLE, APPS_TABLE, HIRES_TABLE } from '../lib/appwrite'
 import { useAuth } from '../lib/AuthContext'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 
 type Job = { $id: string; employerId: string; title: string; industry: string; description?: string }
+type Row = { $id: string; jobId: string; workerId: string; workerName?: string }
 
 export default function Jobs() {
   const { user } = useAuth()
   const isEmployer = (user?.prefs as { role?: string } | undefined)?.role === 'employer'
   const [jobs, setJobs] = useState<Job[]>([])
+  const [apps, setApps] = useState<Row[]>([])
+  const [hires, setHires] = useState<Row[]>([])
   const [title, setTitle] = useState('')
   const [industry, setIndustry] = useState(INDUSTRIES[0])
   const [description, setDescription] = useState('')
@@ -25,6 +28,10 @@ export default function Jobs() {
         queries: [Query.equal('status', 'open'), Query.orderDesc('$createdAt'), Query.limit(50)],
       })
       setJobs(res.rows as unknown as Job[])
+      const a = await tablesDB.listRows({ databaseId: DB_ID, tableId: APPS_TABLE, queries: [Query.limit(100)] })
+      setApps(a.rows as unknown as Row[])
+      const h = await tablesDB.listRows({ databaseId: DB_ID, tableId: HIRES_TABLE, queries: [Query.limit(100)] })
+      setHires(h.rows as unknown as Row[])
     } catch {
       setError('Could not load jobs.')
     }
@@ -59,6 +66,40 @@ export default function Jobs() {
     }
   }
 
+  async function apply(j: Job) {
+    if (!user) return
+    setError('')
+    try {
+      await tablesDB.createRow({
+        databaseId: DB_ID,
+        tableId: APPS_TABLE,
+        rowId: ID.unique(),
+        data: { jobId: j.$id, workerId: user.$id, employerId: j.employerId, workerName: user.name.slice(0, 120) },
+        permissions: [Permission.read(Role.user(user.$id)), Permission.read(Role.user(j.employerId))],
+      })
+      await loadJobs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not apply')
+    }
+  }
+
+  async function hire(j: Job, a: Row) {
+    if (!user) return
+    setError('')
+    try {
+      await tablesDB.createRow({
+        databaseId: DB_ID,
+        tableId: HIRES_TABLE,
+        rowId: ID.unique(),
+        data: { jobId: j.$id, workerId: a.workerId, employerId: user.$id, applicationId: a.$id },
+        permissions: [Permission.read(Role.user(a.workerId)), Permission.read(Role.user(user.$id)), Permission.read(Role.label('admin'))],
+      })
+      await loadJobs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not hire')
+    }
+  }
+
   return (
     <div className="max-w-xl mx-auto space-y-4">
       <h2 className="text-xl font-bold text-slate-900">Open jobs</h2>
@@ -85,6 +126,28 @@ export default function Jobs() {
             <div className="font-bold text-slate-900">{j.title}</div>
             <div className="text-xs text-slate-500">{j.industry}</div>
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}
+            {!isEmployer && (
+              hires.some((h) => h.jobId === j.$id) ? (
+                <div className="mt-3 text-xs font-bold text-emerald-700">Hired</div>
+              ) : apps.some((a) => a.jobId === j.$id) ? (
+                <div className="mt-3 text-xs font-bold text-slate-500">Applied</div>
+              ) : (
+                <button onClick={() => apply(j)} className="mt-3 bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg">Apply</button>
+              )
+            )}
+            {j.employerId === user?.$id && (
+              <div className="mt-3 space-y-2">
+                {apps.filter((a) => a.jobId === j.$id).length === 0 && <div className="text-xs text-slate-400">No applicants yet</div>}
+                {apps.filter((a) => a.jobId === j.$id).map((a) => (
+                  <div key={a.$id} className="flex items-center justify-between gap-2 text-sm border rounded-xl p-2">
+                    <span className="break-all">{a.workerName || a.workerId.slice(0, 8)}</span>
+                    {hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)
+                      ? <span className="text-xs font-bold text-emerald-700">Hired</span>
+                      : <button onClick={() => hire(j, a)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Hire</button>}
+                  </div>
+                ))}
+              </div>
+            )}
           </li>
         ))}
       </ul>

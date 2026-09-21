@@ -13,4 +13,6 @@ export const DOCS_TABLE = 'worker_documents'
 export const DOCS_BUCKET = 'worker-docs'
 export const JOBS_TABLE = 'jobs'
 export const REVIEWS_TABLE = 'document_reviews'
+export const APPS_TABLE = 'applications'
+export const HIRES_TABLE = 'hires'
 export { client }
