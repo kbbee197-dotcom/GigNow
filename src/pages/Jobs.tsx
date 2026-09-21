@@ -53,7 +53,7 @@ export default function Jobs() {
         setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
         setLocMsg('Location saved for this job')
       },
-      () => setLocMsg('Could not get location. Allow location access and try again.'),
+      (e) => setLocMsg('Could not get location: ' + e.message + ' (code ' + e.code + ')'),
       { enableHighAccuracy: true, timeout: 15000 },
     )
   }
