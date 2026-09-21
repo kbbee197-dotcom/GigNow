@@ -52,7 +52,7 @@ export default function WorkerComplianceVault() {
     setBusy(true);
     setError('');
     try {
-      const perms = [Permission.read(Role.user(user.$id)), Permission.read(Role.label('admin'))];
+      const perms = [Permission.read(Role.user(user.$id))];
       const uploaded = await storage.createFile({
         bucketId: DOCS_BUCKET,
         fileId: ID.unique(),

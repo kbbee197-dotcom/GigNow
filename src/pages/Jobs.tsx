@@ -48,13 +48,12 @@ export default function Jobs() {
     setError('')
     try {
       const owner = [Permission.update(Role.user(user.$id)), Permission.delete(Role.user(user.$id))]
-      const admin = [Permission.update(Role.label('admin')), Permission.delete(Role.label('admin'))]
       await tablesDB.createRow({
         databaseId: DB_ID,
         tableId: JOBS_TABLE,
         rowId: ID.unique(),
         data: { employerId: user.$id, title: title.trim(), industry, description: description.trim(), status: 'open' },
-        permissions: [...owner, ...admin],
+        permissions: owner,
       })
       setTitle('')
       setDescription('')
