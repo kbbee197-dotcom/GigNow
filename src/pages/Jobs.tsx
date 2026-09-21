@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { ID, Permission, Query, Role } from 'appwrite'
 import { tablesDB, DB_ID, JOBS_TABLE, APPS_TABLE, HIRES_TABLE } from '../lib/appwrite'
 import { useAuth } from '../lib/AuthContext'
+import { callAction } from '../lib/api'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 
@@ -69,13 +70,7 @@ export default function Jobs() {
     if (!user) return
     setError('')
     try {
-      await tablesDB.createRow({
-        databaseId: DB_ID,
-        tableId: APPS_TABLE,
-        rowId: ID.unique(),
-        data: { jobId: j.$id, workerId: user.$id, employerId: j.employerId, workerName: user.name.slice(0, 120) },
-        permissions: [Permission.read(Role.user(user.$id)), Permission.read(Role.user(j.employerId))],
-      })
+      await callAction({ type: 'apply', jobId: j.$id })
       await loadJobs()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not apply')
@@ -86,13 +81,7 @@ export default function Jobs() {
     if (!user) return
     setError('')
     try {
-      await tablesDB.createRow({
-        databaseId: DB_ID,
-        tableId: HIRES_TABLE,
-        rowId: ID.unique(),
-        data: { jobId: j.$id, workerId: a.workerId, employerId: user.$id, applicationId: a.$id },
-        permissions: [Permission.read(Role.user(a.workerId)), Permission.read(Role.user(user.$id)), Permission.read(Role.label('admin'))],
-      })
+      await callAction({ type: 'hire', applicationId: a.$id })
       await loadJobs()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not hire')

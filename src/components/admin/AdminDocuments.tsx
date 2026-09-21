@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { ID, Permission, Query, Role } from 'appwrite'
 import { account, storage, tablesDB, DB_ID, DOCS_TABLE, DOCS_BUCKET, REVIEWS_TABLE } from '../../lib/appwrite'
 import { useAuth } from '../../lib/AuthContext'
+import { callAction } from '../../lib/api'
 
 type DocRow = { $id: string; userId: string; docType: string; fileId: string; fileName: string }
 type Review = { documentId: string; decision: string }
@@ -67,13 +68,7 @@ export default function AdminDocuments() {
     if (!user) return
     setError('')
     try {
-      await tablesDB.createRow({
-        databaseId: DB_ID,
-        tableId: REVIEWS_TABLE,
-        rowId: ID.unique(),
-        data: { documentId: d.$id, userId: d.userId, decision, reviewedBy: user.$id },
-        permissions: [Permission.read(Role.user(d.userId)), Permission.read(Role.label('admin'))],
-      })
+      await callAction({ type: 'review', documentId: d.$id, decision })
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save review')
