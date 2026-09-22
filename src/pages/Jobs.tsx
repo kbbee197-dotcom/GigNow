@@ -6,7 +6,7 @@ import { callAction } from '../lib/api'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 
-type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceRadius?: number }
+type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number }
 type Row = { $id: string; jobId: string; workerId: string; workerName?: string }
 
 export default function Jobs() {
@@ -24,6 +24,7 @@ export default function Jobs() {
   const [locMsg, setLocMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [editingId, setEditingId] = useState('')
 
   async function loadJobs() {
     try {
@@ -58,28 +59,56 @@ export default function Jobs() {
     )
   }
 
+  function startEdit(j: Job) {
+    setEditingId(j.$id)
+    setTitle(j.title)
+    setIndustry(j.industry)
+    setDescription(j.description ?? '')
+    setPayRate(j.payRateCents ? String(j.payRateCents / 100) : '')
+    setCoords(j.geofenceLat != null && j.geofenceLng != null ? { lat: j.geofenceLat, lng: j.geofenceLng } : null)
+    setRadius(j.geofenceRadius ? String(j.geofenceRadius) : '200')
+    setLocMsg(j.geofenceLat != null ? 'Using saved job site' : '')
+  }
+
+  function cancelEdit() {
+    setEditingId('')
+    setTitle('')
+    setDescription('')
+    setPayRate('')
+    setCoords(null)
+    setLocMsg('')
+    setRadius('200')
+  }
+
   async function handlePost(e: React.FormEvent) {
     e.preventDefault()
     if (!user) return
     setBusy(true)
     setError('')
     try {
-      const owner = [Permission.update(Role.user(user.$id)), Permission.delete(Role.user(user.$id))]
-      await tablesDB.createRow({
-        databaseId: DB_ID,
-        tableId: JOBS_TABLE,
-        rowId: ID.unique(),
-        data: { employerId: user.$id, title: title.trim(), industry, description: description.trim(), status: 'open', ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}), ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}) },
-        permissions: owner,
-      })
-      setTitle('')
-      setDescription('')
-      setCoords(null)
-      setPayRate('')
-      setLocMsg('')
+      const data = {
+        title: title.trim(),
+        industry,
+        description: description.trim(),
+        ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}),
+        ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}),
+      }
+      if (editingId) {
+        await tablesDB.updateRow({ databaseId: DB_ID, tableId: JOBS_TABLE, rowId: editingId, data })
+      } else {
+        const owner = [Permission.update(Role.user(user.$id)), Permission.delete(Role.user(user.$id))]
+        await tablesDB.createRow({
+          databaseId: DB_ID,
+          tableId: JOBS_TABLE,
+          rowId: ID.unique(),
+          data: { employerId: user.$id, status: 'open', ...data },
+          permissions: owner,
+        })
+      }
+      cancelEdit()
       await loadJobs()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not post job')
+      setError(err instanceof Error ? err.message : 'Could not save job')
     } finally {
       setBusy(false)
     }
@@ -112,7 +141,7 @@ export default function Jobs() {
       <h2 className="text-xl font-bold text-slate-900">Open jobs</h2>
       {isEmployer && (
         <form onSubmit={handlePost} className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3">
-          <div className="text-sm font-bold text-slate-800">Post a job</div>
+          <div className="text-sm font-bold text-slate-800">{editingId ? 'Edit job' : 'Post a job'}</div>
           <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" placeholder="Job title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} required />
           <select className="w-full border border-slate-200 rounded-xl p-3 bg-white text-sm" value={industry} onChange={(e) => setIndustry(e.target.value)}>
             {INDUSTRIES.map((i) => (
@@ -128,9 +157,12 @@ export default function Jobs() {
             )}
             {locMsg && <p className="text-xs text-slate-500">{locMsg}</p>}
           </div>
-          <button type="submit" disabled={busy} className="bg-slate-900 text-white text-sm font-bold px-4 py-2 rounded-lg disabled:opacity-50">
-            {busy ? 'Posting...' : 'Post job'}
-          </button>
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy} className="bg-slate-900 text-white text-sm font-bold px-4 py-2 rounded-lg disabled:opacity-50">
+              {busy ? 'Saving...' : editingId ? 'Save changes' : 'Post job'}
+            </button>
+            {editingId && <button type="button" onClick={cancelEdit} className="text-sm font-bold px-4 py-2 rounded-lg border border-slate-300">Cancel</button>}
+          </div>
         </form>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -140,6 +172,7 @@ export default function Jobs() {
           <li key={j.$id} className="p-4 bg-white border border-slate-200 rounded-2xl">
             <div className="font-bold text-slate-900">{j.title}</div>
             <div className="text-xs text-slate-500">{j.industry}</div>
+            {j.payRateCents != null && <div className="text-xs text-slate-500">${(j.payRateCents / 100).toFixed(2)}/hr</div>}
             {j.geofenceLat != null && <div className="text-xs text-emerald-700">Job site set · {j.geofenceRadius ?? 200} m clock-in radius</div>}
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}
             {!isEmployer && (
@@ -153,6 +186,7 @@ export default function Jobs() {
             )}
             {j.employerId === user?.$id && (
               <div className="mt-3 space-y-2">
+                <button onClick={() => startEdit(j)} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-300">Edit</button>
                 {apps.filter((a) => a.jobId === j.$id).length === 0 && <div className="text-xs text-slate-400">No applicants yet</div>}
                 {apps.filter((a) => a.jobId === j.$id).map((a) => (
                   <div key={a.$id} className="flex items-center justify-between gap-2 text-sm border rounded-xl p-2">
