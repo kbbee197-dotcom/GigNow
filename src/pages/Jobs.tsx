@@ -22,6 +22,8 @@ export default function Jobs() {
   const [radius, setRadius] = useState('200')
   const [payRate, setPayRate] = useState('')
   const [locMsg, setLocMsg] = useState('')
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiMsg, setAiMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState('')
@@ -103,6 +105,29 @@ export default function Jobs() {
     }
   }
 
+  async function aiAssist() {
+    if (!title.trim()) {
+      setAiMsg('Enter a job title first')
+      return
+    }
+    setAiBusy(true)
+    setAiMsg('')
+    try {
+      const data = await callAction({ type: 'job_assist', title, industry, notes: description }) as any
+      if (data.description) setDescription(data.description)
+      if (data.payRangeLow != null && data.payRangeHigh != null) {
+        setPayRate(String(data.payRangeLow))
+        setAiMsg(`Suggested: $${data.payRangeLow}-$${data.payRangeHigh}/hr - filled in the low end, adjust as you like`)
+      } else {
+        setAiMsg('Description filled in')
+      }
+    } catch (err) {
+      setAiMsg(err instanceof Error ? err.message : 'Could not get AI suggestion')
+    } finally {
+      setAiBusy(false)
+    }
+  }
+
   async function apply(j: Job) {
     if (!user) return
     setError('')
@@ -139,6 +164,12 @@ export default function Jobs() {
           </select>
           <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" type="number" min="0" step="0.01" placeholder="Hourly pay rate ($)" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
           <textarea className="w-full border border-slate-200 rounded-xl p-3 text-sm" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} />
+          <div className="space-y-1">
+            <button type="button" onClick={aiAssist} disabled={aiBusy} className="text-xs font-bold px-3 py-2 rounded-lg border border-blue-300 text-blue-700 disabled:opacity-50">
+              {aiBusy ? 'Thinking...' : 'AI: suggest description & pay'}
+            </button>
+            {aiMsg && <p className="text-xs text-slate-500">{aiMsg}</p>}
+          </div>
           <div className="space-y-2">
             <button type="button" onClick={grabLocation} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-300">Use my current location as the job site</button>
             {coords && (

@@ -190,6 +190,37 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true })
     }
 
+    if (body.type === 'job_assist') {
+      const title = String(body.title || '').slice(0, 120)
+      const industry = String(body.industry || '')
+      const notes = String(body.notes || '').slice(0, 500)
+      const prompt = `You help small business owners post gig-work jobs on a marketplace called GigNow.
+Given a job title, industry, and any rough notes, write:
+1. A clear, professional 2-4 sentence job description (no headers, plain text).
+2. A fair, current, typical hourly pay range in USD for this role and industry in the United States (as "$X-$Y/hr").
+Respond with strict JSON only, no markdown, in this exact shape: {"description": "...", "payRangeLow": 0, "payRangeHigh": 0}
+Job title: ${title}
+Industry: ${industry}
+Notes from employer: ${notes || '(none)'}`
+
+      const gRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GOOGLE_GENERATIVE_AI_API_KEY as string },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
+      })
+      const gData: any = await gRes.json()
+      if (!gRes.ok) return res.status(502).json({ error: gData?.error?.message || 'AI request failed' })
+      const text = gData?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      const cleaned = text.replace(/```json|```/g, '').trim()
+      let parsed: any
+      try {
+        parsed = JSON.parse(cleaned)
+      } catch {
+        return res.status(502).json({ error: 'Could not parse AI response' })
+      }
+      return res.status(200).json({ ok: true, description: parsed.description, payRangeLow: parsed.payRangeLow, payRangeHigh: parsed.payRangeHigh })
+    }
+
     return res.status(400).json({ error: 'Unknown action' })
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Server error' })
