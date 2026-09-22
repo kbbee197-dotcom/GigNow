@@ -221,6 +221,34 @@ Notes from employer: ${notes || '(none)'}`
       return res.status(200).json({ ok: true, description: parsed.description, payRangeLow: parsed.payRangeLow, payRangeHigh: parsed.payRangeHigh })
     }
 
+    if (body.type === 'verify_search') {
+      if (!isAdmin) return res.status(403).json({ error: 'Admins only' })
+      const businessName = String(body.businessName || '').slice(0, 200)
+      const phone = String(body.phone || '').slice(0, 40)
+      if (!businessName) return res.status(400).json({ error: 'Missing business name' })
+      const prompt = `You are helping a marketplace admin do a quick public-information check on a business before approving it to post jobs.
+Search the web for this business and report only what you find from public sources: whether it appears to exist, its listed address/location if found, its industry/type of business, and whether the phone number given matches any public listing for it.
+Do not make a hiring or approval recommendation. Do not guess or invent details you did not find. If you find little or nothing, say so plainly.
+Business name: ${businessName}
+Phone number given: ${phone || '(none provided)'}`
+
+      const gRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GOOGLE_GENERATIVE_AI_API_KEY as string },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          tools: [{ google_search: {} }],
+        }),
+      })
+      const gData: any = await gRes.json()
+      if (!gRes.ok) return res.status(502).json({ error: gData?.error?.message || 'AI request failed' })
+      const candidate = gData?.candidates?.[0]
+      const summary = candidate?.content?.parts?.map((p: any) => p.text).filter(Boolean).join('\n') || 'No summary returned.'
+      const chunks = candidate?.groundingMetadata?.groundingChunks || []
+      const sources = chunks.map((c: any) => ({ title: c.web?.title, uri: c.web?.uri })).filter((s: any) => s.uri)
+      return res.status(200).json({ ok: true, summary, sources })
+    }
+
     return res.status(400).json({ error: 'Unknown action' })
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Server error' })
