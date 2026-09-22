@@ -23,8 +23,10 @@ export default function AuthenticatedLayout() {
             <Link className={link} to="/dashboard/compliance">Documents</Link>
             <Link className={link} to="/dashboard/clock-in">Clock in</Link>
             <Link className={link} to="/dashboard/shifts">Approve shifts</Link>
+            <Link className={link} to="/dashboard/business">Business verification</Link>
             {isAdmin && <Link className={link} to="/dashboard/admin">Admin</Link>}
             {isAdmin && <Link className={link} to="/dashboard/admin/documents">Review docs</Link>}
+            {isAdmin && <Link className={link} to="/dashboard/admin/employers">Review employers</Link>}
           </nav>
           <button onClick={logout} className="text-sm font-normal text-slate-300 underline">Sign out</button>
         </aside>

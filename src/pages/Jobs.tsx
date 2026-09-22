@@ -93,18 +93,7 @@ export default function Jobs() {
         ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}),
         ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}),
       }
-      if (editingId) {
-        await tablesDB.updateRow({ databaseId: DB_ID, tableId: JOBS_TABLE, rowId: editingId, data })
-      } else {
-        const owner = [Permission.update(Role.user(user.$id)), Permission.delete(Role.user(user.$id))]
-        await tablesDB.createRow({
-          databaseId: DB_ID,
-          tableId: JOBS_TABLE,
-          rowId: ID.unique(),
-          data: { employerId: user.$id, status: 'open', ...data },
-          permissions: owner,
-        })
-      }
+      await callAction({ type: 'post_job', jobId: editingId || undefined, data })
       cancelEdit()
       await loadJobs()
     } catch (err) {

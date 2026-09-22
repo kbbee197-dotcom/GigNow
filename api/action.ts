@@ -157,6 +157,39 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true })
     }
 
+    if (body.type === 'review_employer') {
+      if (!isAdmin) return res.status(403).json({ error: 'Admins only' })
+      if (!['approved', 'rejected'].includes(body.status)) return res.status(400).json({ error: 'Bad status' })
+      await db.updateRow({ databaseId: DB_ID, tableId: 'employer_profiles', rowId: body.profileId, data: { status: body.status } })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'post_job') {
+      const profiles = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'employer_profiles',
+        queries: [Query.equal('employerId', caller.$id), Query.limit(1)],
+      })
+      const profile: any = profiles.rows[0]
+      if (!profile || profile.status !== 'approved') {
+        return res.status(403).json({ error: 'Your business must be verified before posting jobs' })
+      }
+      if (body.jobId) {
+        const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId })
+        if (job.employerId !== caller.$id) return res.status(403).json({ error: 'Not your job' })
+        await db.updateRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId, data: body.data })
+      } else {
+        await db.createRow({
+          databaseId: DB_ID,
+          tableId: 'jobs',
+          rowId: ID.unique(),
+          data: { employerId: caller.$id, status: 'open', ...body.data },
+          permissions: [Permission.update(Role.user(caller.$id)), Permission.delete(Role.user(caller.$id))],
+        })
+      }
+      return res.status(200).json({ ok: true })
+    }
+
     return res.status(400).json({ error: 'Unknown action' })
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Server error' })

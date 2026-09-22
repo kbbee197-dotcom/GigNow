@@ -16,4 +16,5 @@ export const REVIEWS_TABLE = 'document_reviews'
 export const APPS_TABLE = 'applications'
 export const HIRES_TABLE = 'hires'
 export const LOGS_TABLE = 'work_logs'
+export const EMPLOYER_TABLE = 'employer_profiles'
 export { client }

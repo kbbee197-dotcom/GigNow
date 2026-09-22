@@ -7,6 +7,8 @@ import Login from './pages/Login';
 import Jobs from './pages/Jobs';
 import RequireAdmin from './components/admin/RequireAdmin';
 import ShiftApprovals from './components/employer/ShiftApprovals';
+import EmployerProfile from './pages/EmployerProfile';
+import AdminEmployers from './components/admin/AdminEmployers';
 import AdminDocuments from './components/admin/AdminDocuments';
 import AdminProfitOps from './components/admin/AdminProfitOps';
 import MobileClockIn from './components/worker/MobileClockIn';
@@ -26,6 +28,8 @@ export default function App() {
             <Route path="admin" element={<RequireAdmin><AdminProfitOps /></RequireAdmin>} />
             <Route path="admin/documents" element={<RequireAdmin><AdminDocuments /></RequireAdmin>} />
             <Route path="shifts" element={<ShiftApprovals />} />
+            <Route path="business" element={<EmployerProfile />} />
+            <Route path="admin/employers" element={<RequireAdmin><AdminEmployers /></RequireAdmin>} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="clock-in" element={<MobileClockIn />} />
             <Route path="compliance" element={<WorkerComplianceVault />} />
