@@ -29,6 +29,10 @@ export default function AuthenticatedLayout() {
             {isAdmin && <Link className={link} to="/dashboard/admin/employers">Review employers</Link>}
           </nav>
           <button onClick={logout} className="text-sm font-normal text-slate-300 underline">Sign out</button>
+          <div className="text-xs text-slate-500 space-x-2 pt-2">
+            <a href="/terms" className="underline">Terms</a>
+            <a href="/privacy" className="underline">Privacy</a>
+          </div>
         </aside>
         <main className="flex-1 min-w-0 p-4 md:p-6 overflow-y-auto">
           <Outlet />

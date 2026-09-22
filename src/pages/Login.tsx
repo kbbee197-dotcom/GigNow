@@ -54,6 +54,9 @@ export default function Login() {
         <button type="button" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} className="w-full text-sm text-slate-500">
           {mode === 'login' ? 'New here? Create an account' : 'Have an account? Sign in'}
         </button>
+        <p className="text-xs text-center text-slate-400 pt-2">
+          By continuing you agree to our <a href="/terms" className="underline">Terms</a> and <a href="/privacy" className="underline">Privacy Policy</a>.
+        </p>
       </form>
     </div>
   )
