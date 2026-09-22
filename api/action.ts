@@ -203,7 +203,7 @@ Job title: ${title}
 Industry: ${industry}
 Notes from employer: ${notes || '(none)'}`
 
-      const gRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+      const gRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GOOGLE_GENERATIVE_AI_API_KEY as string },
         body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }] }),
