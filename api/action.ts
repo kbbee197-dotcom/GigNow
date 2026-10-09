@@ -2,6 +2,9 @@ import { Account, Client, ID, Permission, Query, Role, TablesDB } from 'node-app
 
 const DB_ID = 'gignow'
 
+// Sourced starting list of strict broad ABC-test states as of 2026 — confirm with counsel before changing.
+const STRICT_ABC_STATES = new Set(['CA', 'MA', 'NJ'])
+
 const FEE_RATES: Record<string, number> = {
   'Healthcare': 0.15,
   'Logistics & Warehousing': 0.12,
@@ -173,6 +176,10 @@ export default async function handler(req: any, res: any) {
       const profile: any = profiles.rows[0]
       if (!profile || profile.status !== 'approved') {
         return res.status(403).json({ error: 'Your business must be verified before posting jobs' })
+      }
+      const state = String(body.data?.state || '').toUpperCase()
+      if (STRICT_ABC_STATES.has(state)) {
+        return res.status(403).json({ error: 'Jobs in ' + state + ' currently require verified business entity status, which is not yet available. Contact support.' })
       }
       if (body.jobId) {
         const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId })
