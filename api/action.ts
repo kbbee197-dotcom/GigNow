@@ -179,7 +179,15 @@ export default async function handler(req: any, res: any) {
       }
       const state = String(body.data?.state || '').toUpperCase()
       if (STRICT_ABC_STATES.has(state)) {
-        return res.status(403).json({ error: 'Jobs in ' + state + ' currently require verified business entity status, which is not yet available. Contact support.' })
+        const b2b = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'employer_profiles',
+          queries: [Query.equal('employerId', caller.$id), Query.limit(1)],
+        })
+        const b2bProfile: any = b2b.rows[0]
+        if (!b2bProfile || b2bProfile.b2bStatus !== 'verified') {
+          return res.status(403).json({ error: 'Jobs in ' + state + ' require verified business entity (LLC/Corp) status. Submit your EIN under Business verification.' })
+        }
       }
       if (body.jobId) {
         const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId })
@@ -254,6 +262,35 @@ Phone number given: ${phone || '(none provided)'}`
       const chunks = candidate?.groundingMetadata?.groundingChunks || []
       const sources = chunks.map((c: any) => ({ title: c.web?.title, uri: c.web?.uri })).filter((s: any) => s.uri)
       return res.status(200).json({ ok: true, summary, sources })
+    }
+
+    if (body.type === 'submit_b2b') {
+      const profiles = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'employer_profiles',
+        queries: [Query.equal('employerId', caller.$id), Query.limit(1)],
+      })
+      const profile: any = profiles.rows[0]
+      if (!profile) return res.status(400).json({ error: 'Submit your basic business profile first' })
+      await db.updateRow({
+        databaseId: DB_ID,
+        tableId: 'employer_profiles',
+        rowId: profile.$id,
+        data: {
+          entityType: String(body.entityType || '').slice(0, 20),
+          ein: String(body.ein || '').slice(0, 20),
+          b2bDocFileId: String(body.fileId || '').slice(0, 64),
+          b2bStatus: 'pending',
+        },
+      })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'review_b2b') {
+      if (!isAdmin) return res.status(403).json({ error: 'Admins only' })
+      if (!['verified', 'rejected'].includes(body.status)) return res.status(400).json({ error: 'Bad status' })
+      await db.updateRow({ databaseId: DB_ID, tableId: 'employer_profiles', rowId: body.profileId, data: { b2bStatus: body.status } })
+      return res.status(200).json({ ok: true })
     }
 
     return res.status(400).json({ error: 'Unknown action' })

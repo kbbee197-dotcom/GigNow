@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Query } from 'appwrite'
-import { tablesDB, DB_ID, EMPLOYER_TABLE } from '../../lib/appwrite'
+import { tablesDB, storage, account, DB_ID, EMPLOYER_TABLE, DOCS_BUCKET } from '../../lib/appwrite'
 import { callAction } from '../../lib/api'
 
-type Profile = { $id: string; employerId: string; businessName: string; phone: string; status: string }
+type Profile = { $id: string; employerId: string; businessName: string; phone: string; status: string; entityType?: string; ein?: string; b2bDocFileId?: string; b2bStatus?: string }
 type SearchResult = { summary: string; sources: { title?: string; uri: string }[] }
+type Preview = { id: string; url: string; type: string }
 
 export default function AdminEmployers() {
   const [rows, setRows] = useState<Profile[]>([])
   const [busyId, setBusyId] = useState('')
   const [searchBusyId, setSearchBusyId] = useState('')
   const [results, setResults] = useState<Record<string, SearchResult>>({})
+  const [preview, setPreview] = useState<Preview | null>(null)
   const [error, setError] = useState('')
 
   async function load() {
@@ -43,6 +45,19 @@ export default function AdminEmployers() {
     }
   }
 
+  async function decideB2b(id: string, status: 'verified' | 'rejected') {
+    setBusyId(id)
+    setError('')
+    try {
+      await callAction({ type: 'review_b2b', profileId: id, status })
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save decision')
+    } finally {
+      setBusyId('')
+    }
+  }
+
   async function runSearch(r: Profile) {
     setSearchBusyId(r.$id)
     setError('')
@@ -53,6 +68,26 @@ export default function AdminEmployers() {
       setError(err instanceof Error ? err.message : 'Search failed')
     } finally {
       setSearchBusyId('')
+    }
+  }
+
+  async function viewB2bDoc(r: Profile) {
+    if (!r.b2bDocFileId) return
+    setError('')
+    try {
+      const { jwt } = await account.createJWT()
+      const url = storage.getFileView({ bucketId: DOCS_BUCKET, fileId: r.b2bDocFileId })
+      const res = await fetch(String(url), {
+        headers: {
+          'X-Appwrite-Project': import.meta.env.VITE_APPWRITE_PROJECT_ID,
+          'X-Appwrite-JWT': jwt,
+        },
+      })
+      if (!res.ok) throw new Error('Could not load document')
+      const blob = await res.blob()
+      setPreview({ id: r.$id, url: URL.createObjectURL(blob), type: blob.type })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not open document')
     }
   }
 
@@ -88,6 +123,27 @@ export default function AdminEmployers() {
                       <a key={i} href={s.uri} target="_blank" rel="noreferrer" className="block underline text-blue-700 break-all">{s.title || s.uri}</a>
                     ))}
                   </div>
+                )}
+              </div>
+            )}
+
+            {r.b2bStatus && r.b2bStatus !== 'none' && (
+              <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                <div className="text-xs font-bold text-slate-700">B2B entity verification: {r.b2bStatus}</div>
+                <div className="text-xs text-slate-500">{r.entityType} · EIN {r.ein}</div>
+                <div className="flex flex-wrap gap-2">
+                  {r.b2bDocFileId && <button onClick={() => viewB2bDoc(r)} className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-300">View document</button>}
+                  {r.b2bStatus === 'pending' && (
+                    <>
+                      <button onClick={() => decideB2b(r.$id, 'verified')} disabled={busyId === r.$id} className="text-xs font-bold px-3 py-2 rounded-lg bg-emerald-600 text-white disabled:opacity-50">Verify</button>
+                      <button onClick={() => decideB2b(r.$id, 'rejected')} disabled={busyId === r.$id} className="text-xs font-bold px-3 py-2 rounded-lg bg-red-600 text-white disabled:opacity-50">Reject</button>
+                    </>
+                  )}
+                </div>
+                {preview?.id === r.$id && (
+                  preview.type.startsWith('image/')
+                    ? <img src={preview.url} alt="" className="max-w-full rounded-xl border" />
+                    : <a href={preview.url} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline">Open document</a>
                 )}
               </div>
             )}
