@@ -7,7 +7,7 @@ import { callAction } from '../lib/api'
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
 
-type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string }
+type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean }
 type Row = { $id: string; jobId: string; workerId: string; workerName?: string }
 
 export default function Jobs() {
@@ -20,6 +20,7 @@ export default function Jobs() {
   const [industry, setIndustry] = useState(INDUSTRIES[0])
   const [state, setState] = useState('')
   const [trackType, setTrackType] = useState('1099')
+  const [isManaged, setIsManaged] = useState(false)
   const [description, setDescription] = useState('')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [radius, setRadius] = useState('200')
@@ -70,6 +71,7 @@ export default function Jobs() {
     setIndustry(j.industry)
     setState(j.state ?? '')
     setTrackType(j.trackType ?? '1099')
+    setIsManaged(!!j.isManaged)
     setDescription(j.description ?? '')
     setPayRate(j.payRateCents ? String(j.payRateCents / 100) : '')
     setCoords(j.geofenceLat != null && j.geofenceLng != null ? { lat: j.geofenceLat, lng: j.geofenceLng } : null)
@@ -82,6 +84,7 @@ export default function Jobs() {
     setTitle('')
     setState('')
     setTrackType('1099')
+    setIsManaged(false)
     setDescription('')
     setPayRate('')
     setCoords(null)
@@ -100,6 +103,7 @@ export default function Jobs() {
         industry,
         state,
         trackType,
+        isManaged,
         description: description.trim(),
         ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}),
         ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}),
@@ -182,6 +186,10 @@ export default function Jobs() {
             <option value="b2b">B2B (verified business entity)</option>
             <option value="eor">W-2 via payroll partner (coming soon)</option>
           </select>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={isManaged} onChange={(e) => setIsManaged(e.target.checked)} />
+            GigNow Managed Staffing (full sourcing, vetting & dispute handling — 30% markup instead of standard fee)
+          </label>
           <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" type="number" min="0" step="0.01" placeholder="Hourly pay rate ($)" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
           <textarea className="w-full border border-slate-200 rounded-xl p-3 text-sm" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} />
           <div className="space-y-1">
@@ -211,7 +219,7 @@ export default function Jobs() {
         {jobs.map((j) => (
           <li key={j.$id} className="p-4 bg-white border border-slate-200 rounded-2xl">
             <div className="font-bold text-slate-900">{j.title}</div>
-            <div className="text-xs text-slate-500">{j.industry}{j.state ? ' · ' + j.state : ''}{j.trackType && j.trackType !== '1099' ? ' · ' + j.trackType.toUpperCase() : ''}</div>
+            <div className="text-xs text-slate-500">{j.industry}{j.state ? ' · ' + j.state : ''}{j.trackType && j.trackType !== '1099' ? ' · ' + j.trackType.toUpperCase() : ''}{j.isManaged ? ' · Managed' : ''}</div>
             {j.payRateCents != null && <div className="text-xs text-slate-500">${(j.payRateCents / 100).toFixed(2)}/hr</div>}
             {j.geofenceLat != null && <div className="text-xs text-emerald-700">Job site set · {j.geofenceRadius ?? 200} m clock-in radius</div>}
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}

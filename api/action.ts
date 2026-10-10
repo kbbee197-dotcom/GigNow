@@ -147,7 +147,8 @@ export default async function handler(req: any, res: any) {
       const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: log.jobId })
       const rate = Number(job.payRateCents)
       if (!Number.isFinite(rate) || rate <= 0) return res.status(400).json({ error: 'This job has no pay rate set' })
-      const feeRate = FEE_RATES[job.industry] ?? 0.10
+      const MANAGED_MARKUP_RATE = 0.30
+      const feeRate = job.isManaged ? MANAGED_MARKUP_RATE : (FEE_RATES[job.industry] ?? 0.10)
       const grossCents = Math.round(Number(log.hoursWorked) * rate)
       const feeCents = Math.round(grossCents * feeRate)
       const netCents = grossCents - feeCents
