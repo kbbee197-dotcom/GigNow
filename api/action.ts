@@ -190,6 +190,10 @@ export default async function handler(req: any, res: any) {
           return res.status(403).json({ error: 'Jobs in ' + state + ' require verified business entity (LLC/Corp) status. Submit your EIN under Business verification.' })
         }
       }
+      const ss = body.data?.shiftStart
+      const se = body.data?.shiftEnd
+      if ((ss != null && isNaN(new Date(ss).getTime())) || (se != null && isNaN(new Date(se).getTime()))) return res.status(400).json({ error: 'Invalid shift time' })
+      if (ss && se && new Date(se).getTime() <= new Date(ss).getTime()) return res.status(400).json({ error: 'Shift end must be after shift start' })
       if (body.jobId) {
         const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId })
         if (job.employerId !== caller.$id) return res.status(403).json({ error: 'Not your job' })

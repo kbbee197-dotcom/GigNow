@@ -7,8 +7,16 @@ import { callAction } from '../lib/api'
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
 
-type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean }
+type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean; shiftStart?: string; shiftEnd?: string }
 type Row = { $id: string; jobId: string; workerId: string; workerName?: string }
+
+function toLocalInput(iso?: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+}
 
 export default function Jobs() {
   const { user } = useAuth()
@@ -21,6 +29,8 @@ export default function Jobs() {
   const [state, setState] = useState('')
   const [trackType, setTrackType] = useState('1099')
   const [isManaged, setIsManaged] = useState(false)
+  const [shiftStart, setShiftStart] = useState('')
+  const [shiftEnd, setShiftEnd] = useState('')
   const [description, setDescription] = useState('')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [radius, setRadius] = useState('200')
@@ -72,6 +82,8 @@ export default function Jobs() {
     setState(j.state ?? '')
     setTrackType(j.trackType ?? '1099')
     setIsManaged(!!j.isManaged)
+    setShiftStart(toLocalInput(j.shiftStart))
+    setShiftEnd(toLocalInput(j.shiftEnd))
     setDescription(j.description ?? '')
     setPayRate(j.payRateCents ? String(j.payRateCents / 100) : '')
     setCoords(j.geofenceLat != null && j.geofenceLng != null ? { lat: j.geofenceLat, lng: j.geofenceLng } : null)
@@ -85,6 +97,8 @@ export default function Jobs() {
     setState('')
     setTrackType('1099')
     setIsManaged(false)
+    setShiftStart('')
+    setShiftEnd('')
     setDescription('')
     setPayRate('')
     setCoords(null)
@@ -98,12 +112,15 @@ export default function Jobs() {
     setBusy(true)
     setError('')
     try {
+      if (shiftStart && shiftEnd && new Date(shiftEnd) <= new Date(shiftStart)) throw new Error('Shift end must be after shift start')
       const data = {
         title: title.trim(),
         industry,
         state,
         trackType,
         isManaged,
+        ...(shiftStart ? { shiftStart: new Date(shiftStart).toISOString() } : {}),
+        ...(shiftEnd ? { shiftEnd: new Date(shiftEnd).toISOString() } : {}),
         description: description.trim(),
         ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}),
         ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}),
@@ -191,6 +208,12 @@ export default function Jobs() {
             GigNow Managed Staffing (full sourcing, vetting & dispute handling — 30% markup instead of standard fee)
           </label>
           <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" type="number" min="0" step="0.01" placeholder="Hourly pay rate ($)" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
+          <label className="block text-xs text-slate-500">Shift start (optional)
+            <input className="w-full border border-slate-200 rounded-xl p-3 text-sm mt-1" type="datetime-local" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
+          </label>
+          <label className="block text-xs text-slate-500">Shift end (optional)
+            <input className="w-full border border-slate-200 rounded-xl p-3 text-sm mt-1" type="datetime-local" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} />
+          </label>
           <textarea className="w-full border border-slate-200 rounded-xl p-3 text-sm" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} />
           <div className="space-y-1">
             <button type="button" onClick={aiAssist} disabled={aiBusy} className="text-xs font-bold px-3 py-2 rounded-lg border border-blue-300 text-blue-700 disabled:opacity-50">
