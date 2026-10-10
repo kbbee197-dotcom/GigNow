@@ -296,13 +296,13 @@ Phone number given: ${phone || '(none provided)'}`
     if (body.type === 'eor_connect') {
       const existing = await db.listRows({
         databaseId: DB_ID,
-        tableId: 'eor_profiles',
+        tableId: '6ac9a5d4001830da0b4f',
         queries: [Query.equal('workerId', caller.$id), Query.limit(1)],
       })
       if (existing.total === 0) {
         await db.createRow({
           databaseId: DB_ID,
-          tableId: 'eor_profiles',
+          tableId: '6ac9a5d4001830da0b4f',
           rowId: ID.unique(),
           data: { workerId: caller.$id, eorOnboardingStatus: 'none' },
         })

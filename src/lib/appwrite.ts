@@ -17,5 +17,5 @@ export const APPS_TABLE = 'applications'
 export const HIRES_TABLE = 'hires'
 export const LOGS_TABLE = 'work_logs'
 export const EMPLOYER_TABLE = 'employer_profiles'
-export const EOR_TABLE = 'eor_profiles'
+export const EOR_TABLE = '6ac9a5d4001830da0b4f'
 export { client }
