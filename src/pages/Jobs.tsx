@@ -7,7 +7,7 @@ import { callAction } from '../lib/api'
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
 
-type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string }
+type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string }
 type Row = { $id: string; jobId: string; workerId: string; workerName?: string }
 
 export default function Jobs() {
@@ -19,6 +19,7 @@ export default function Jobs() {
   const [title, setTitle] = useState('')
   const [industry, setIndustry] = useState(INDUSTRIES[0])
   const [state, setState] = useState('')
+  const [trackType, setTrackType] = useState('1099')
   const [description, setDescription] = useState('')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [radius, setRadius] = useState('200')
@@ -68,6 +69,7 @@ export default function Jobs() {
     setTitle(j.title)
     setIndustry(j.industry)
     setState(j.state ?? '')
+    setTrackType(j.trackType ?? '1099')
     setDescription(j.description ?? '')
     setPayRate(j.payRateCents ? String(j.payRateCents / 100) : '')
     setCoords(j.geofenceLat != null && j.geofenceLng != null ? { lat: j.geofenceLat, lng: j.geofenceLng } : null)
@@ -79,6 +81,7 @@ export default function Jobs() {
     setEditingId('')
     setTitle('')
     setState('')
+    setTrackType('1099')
     setDescription('')
     setPayRate('')
     setCoords(null)
@@ -96,6 +99,7 @@ export default function Jobs() {
         title: title.trim(),
         industry,
         state,
+        trackType,
         description: description.trim(),
         ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}),
         ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}),
@@ -173,6 +177,11 @@ export default function Jobs() {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
+          <select className="w-full border border-slate-200 rounded-xl p-3 bg-white text-sm" value={trackType} onChange={(e) => setTrackType(e.target.value)}>
+            <option value="1099">Standard (1099 contractor)</option>
+            <option value="b2b">B2B (verified business entity)</option>
+            <option value="eor">W-2 via payroll partner (coming soon)</option>
+          </select>
           <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" type="number" min="0" step="0.01" placeholder="Hourly pay rate ($)" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
           <textarea className="w-full border border-slate-200 rounded-xl p-3 text-sm" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} maxLength={2000} />
           <div className="space-y-1">
@@ -202,7 +211,7 @@ export default function Jobs() {
         {jobs.map((j) => (
           <li key={j.$id} className="p-4 bg-white border border-slate-200 rounded-2xl">
             <div className="font-bold text-slate-900">{j.title}</div>
-            <div className="text-xs text-slate-500">{j.industry}{j.state ? ' · ' + j.state : ''}</div>
+            <div className="text-xs text-slate-500">{j.industry}{j.state ? ' · ' + j.state : ''}{j.trackType && j.trackType !== '1099' ? ' · ' + j.trackType.toUpperCase() : ''}</div>
             {j.payRateCents != null && <div className="text-xs text-slate-500">${(j.payRateCents / 100).toFixed(2)}/hr</div>}
             {j.geofenceLat != null && <div className="text-xs text-emerald-700">Job site set · {j.geofenceRadius ?? 200} m clock-in radius</div>}
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}

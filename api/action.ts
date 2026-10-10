@@ -293,6 +293,27 @@ Phone number given: ${phone || '(none provided)'}`
       return res.status(200).json({ ok: true })
     }
 
+    if (body.type === 'eor_connect') {
+      const existing = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'eor_profiles',
+        queries: [Query.equal('workerId', caller.$id), Query.limit(1)],
+      })
+      if (existing.total === 0) {
+        await db.createRow({
+          databaseId: DB_ID,
+          tableId: 'eor_profiles',
+          rowId: ID.unique(),
+          data: { workerId: caller.$id, eorOnboardingStatus: 'none' },
+        })
+      }
+      // TODO once a payroll partner is signed: replace this with the
+      // partner's hosted-onboarding redirect URL / OAuth start, e.g.
+      //   const session = await deelClient.startOnboarding({ externalId: caller.$id })
+      //   return res.status(200).json({ ok: true, redirectUrl: session.url })
+      return res.status(200).json({ ok: false, error: 'W-2 verification is not yet available. GigNow has not signed a payroll partner yet. Check back soon.' })
+    }
+
     return res.status(400).json({ error: 'Unknown action' })
   } catch (err: any) {
     return res.status(500).json({ error: err?.message || 'Server error' })
