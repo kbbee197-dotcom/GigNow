@@ -24,6 +24,7 @@ export default function Jobs() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [apps, setApps] = useState<Row[]>([])
   const [hires, setHires] = useState<Row[]>([])
+  const [stats, setStats] = useState<Record<string, { completed: number; noShows: number }>>({})
   const [title, setTitle] = useState('')
   const [industry, setIndustry] = useState(INDUSTRIES[0])
   const [state, setState] = useState('')
@@ -54,6 +55,17 @@ export default function Jobs() {
       setApps(a.rows as unknown as Row[])
       const h = await tablesDB.listRows({ databaseId: DB_ID, tableId: HIRES_TABLE, queries: [Query.limit(100)] })
       setHires(h.rows as unknown as Row[])
+      if (isEmployer) {
+        try {
+          const ids = Array.from(new Set((a.rows as unknown as Row[]).map((r) => r.workerId)))
+          if (ids.length > 0) {
+            const r = await callAction({ type: 'worker_stats', workerIds: ids })
+            setStats(r.stats || {})
+          }
+        } catch {
+          /* reliability stats are optional */
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load jobs.')
     }
@@ -169,6 +181,12 @@ export default function Jobs() {
     }
   }
 
+  function statsLabel(workerId: string) {
+    const st = stats[workerId]
+    if (!st) return ''
+    return st.completed + (st.completed === 1 ? ' shift' : ' shifts') + ' · ' + st.noShows + (st.noShows === 1 ? ' no-show' : ' no-shows')
+  }
+
   function hireFor(j: Job, a: Row) {
     return hires.find((h) => h.jobId === j.$id && h.workerId === a.workerId)
   }
@@ -276,7 +294,10 @@ export default function Jobs() {
                 {apps.filter((a) => a.jobId === j.$id).length === 0 && <div className="text-xs text-slate-400">No applicants yet</div>}
                 {apps.filter((a) => a.jobId === j.$id).map((a) => (
                   <div key={a.$id} className="flex items-center justify-between gap-2 text-sm border rounded-xl p-2">
-                    <span className="break-all">{a.workerName || a.workerId.slice(0, 8)}</span>
+                    <div>
+                      <span className="break-all">{a.workerName || a.workerId.slice(0, 8)}</span>
+                      {stats[a.workerId] && <div className={'text-xs ' + (stats[a.workerId].noShows > 0 ? 'text-red-600' : 'text-slate-500')}>{statsLabel(a.workerId)}</div>}
+                    </div>
                     {hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)
                       ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="flex items-center gap-2"><span className="text-xs font-bold text-red-600">{hireFor(j, a)?.replacedAt ? 'Replaced' : 'No-show'}</span>{!hireFor(j, a)?.replacedAt && <button onClick={() => replaceHire(hireFor(j, a)!.$id)} className="bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Replace</button>}</span> : <span className="text-xs font-bold text-emerald-700">Hired</span>)
                       : <button onClick={() => hire(j, a)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Hire</button>}

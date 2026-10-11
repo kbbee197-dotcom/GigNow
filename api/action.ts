@@ -104,6 +104,34 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true })
     }
 
+    if (body.type === 'worker_stats') {
+      const prof = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'employer_profiles',
+        queries: [Query.equal('employerId', caller.$id), Query.limit(1)],
+      })
+      const ep: any = prof.rows[0]
+      if (!isAdmin && (!ep || ep.status !== 'approved')) return res.status(403).json({ error: 'Employers only' })
+      const ids = Array.from(new Set((Array.isArray(body.workerIds) ? body.workerIds : []).map(String))).slice(0, 50)
+      const stats: Record<string, { completed: number; noShows: number }> = {}
+      for (const id of ids) stats[id] = { completed: 0, noShows: 0 }
+      if (ids.length > 0) {
+        const logs = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'work_logs',
+          queries: [Query.equal('workerId', ids), Query.equal('status', 'done'), Query.limit(500)],
+        })
+        for (const l of logs.rows as any[]) if (stats[l.workerId]) stats[l.workerId].completed++
+        const hs = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'hires',
+          queries: [Query.equal('workerId', ids), Query.limit(500)],
+        })
+        for (const h of hs.rows as any[]) if (h.noShowAt && stats[h.workerId]) stats[h.workerId].noShows++
+      }
+      return res.status(200).json({ ok: true, stats })
+    }
+
     if (body.type === 'clockin') {
       const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId })
       const hired = await db.listRows({
