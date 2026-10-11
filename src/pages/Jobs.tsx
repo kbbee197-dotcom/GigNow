@@ -7,8 +7,8 @@ import { callAction } from '../lib/api'
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
 
-type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean; shiftStart?: string; shiftEnd?: string }
-type Row = { $id: string; jobId: string; workerId: string; workerName?: string; noShowAt?: string }
+type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean; shiftStart?: string; shiftEnd?: string; reopenedAt?: string }
+type Row = { $id: string; jobId: string; workerId: string; workerName?: string; noShowAt?: string; replacedAt?: string }
 
 function toLocalInput(iso?: string) {
   if (!iso) return ''
@@ -169,6 +169,20 @@ export default function Jobs() {
     }
   }
 
+  function hireFor(j: Job, a: Row) {
+    return hires.find((h) => h.jobId === j.$id && h.workerId === a.workerId)
+  }
+
+  async function replaceHire(hireId: string) {
+    setError('')
+    try {
+      await callAction({ type: 'replace_hire', hireId })
+      await loadJobs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not replace')
+    }
+  }
+
   async function hire(j: Job, a: Row) {
     if (!user) return
     setError('')
@@ -246,6 +260,7 @@ export default function Jobs() {
             {j.payRateCents != null && <div className="text-xs text-slate-500">${(j.payRateCents / 100).toFixed(2)}/hr</div>}
             {j.geofenceLat != null && <div className="text-xs text-emerald-700">Job site set · {j.geofenceRadius ?? 200} m clock-in radius</div>}
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}
+            {!isEmployer && j.reopenedAt && !hires.some((h) => h.jobId === j.$id) && <div className="mt-2 text-xs font-bold text-orange-600">Urgent opening: a spot just reopened</div>}
             {!isEmployer && (
               hires.some((h) => h.jobId === j.$id) ? (
                 hires.some((h) => h.jobId === j.$id && h.noShowAt) ? <div className="mt-3 text-xs font-bold text-red-600">Marked as no-show</div> : <div className="mt-3 text-xs font-bold text-emerald-700">Hired</div>
@@ -263,7 +278,7 @@ export default function Jobs() {
                   <div key={a.$id} className="flex items-center justify-between gap-2 text-sm border rounded-xl p-2">
                     <span className="break-all">{a.workerName || a.workerId.slice(0, 8)}</span>
                     {hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)
-                      ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="text-xs font-bold text-red-600">No-show</span> : <span className="text-xs font-bold text-emerald-700">Hired</span>)
+                      ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="flex items-center gap-2"><span className="text-xs font-bold text-red-600">{hireFor(j, a)?.replacedAt ? 'Replaced' : 'No-show'}</span>{!hireFor(j, a)?.replacedAt && <button onClick={() => replaceHire(hireFor(j, a)!.$id)} className="bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Replace</button>}</span> : <span className="text-xs font-bold text-emerald-700">Hired</span>)
                       : <button onClick={() => hire(j, a)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Hire</button>}
                   </div>
                 ))}

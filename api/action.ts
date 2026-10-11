@@ -88,6 +88,19 @@ export default async function handler(req: any, res: any) {
           permissions: [Permission.read(Role.user(application.workerId)), Permission.read(Role.user(caller.$id)), Permission.read(Role.label('admin'))],
         })
       }
+      if (job.reopenedAt) await db.updateRow({ databaseId: DB_ID, tableId: 'jobs', rowId: job.$id, data: { reopenedAt: null } })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'replace_hire') {
+      const hire: any = await db.getRow({ databaseId: DB_ID, tableId: 'hires', rowId: body.hireId })
+      if (hire.employerId !== caller.$id) return res.status(403).json({ error: 'Not your hire' })
+      if (!hire.noShowAt) return res.status(400).json({ error: 'Only no-shows can be replaced' })
+      if (!hire.replacedAt) {
+        const nowIso = new Date().toISOString()
+        await db.updateRow({ databaseId: DB_ID, tableId: 'hires', rowId: hire.$id, data: { replacedAt: nowIso } })
+        await db.updateRow({ databaseId: DB_ID, tableId: 'jobs', rowId: hire.jobId, data: { reopenedAt: nowIso } })
+      }
       return res.status(200).json({ ok: true })
     }
 
@@ -98,7 +111,7 @@ export default async function handler(req: any, res: any) {
         tableId: 'hires',
         queries: [Query.equal('jobId', job.$id), Query.equal('workerId', caller.$id), Query.limit(1)],
       })
-      if (hired.total === 0) return res.status(403).json({ error: 'You are not hired for this job' })
+      if (!(hired.rows as any[]).some((r) => !r.replacedAt)) return res.status(403).json({ error: 'You are not hired for this job' })
       if (job.geofenceLat == null || job.geofenceLng == null) return res.status(400).json({ error: 'This job has no job site set' })
       const lat = Number(body.lat)
       const lng = Number(body.lng)
