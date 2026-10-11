@@ -106,6 +106,19 @@ export default async function handler(req: any, res: any) {
       const dist = Math.round(distanceMeters(lat, lng, job.geofenceLat, job.geofenceLng))
       const radius = Number(job.geofenceRadius) || 200
       if (dist > radius) return res.status(403).json({ error: 'You are ' + dist + ' m from the job site (limit ' + radius + ' m)' })
+      const EARLY_MS = 15 * 60 * 1000
+      const nowMs = Date.now()
+      if (job.shiftStart) {
+        const startMs = new Date(job.shiftStart).getTime()
+        if (Number.isFinite(startMs) && nowMs < startMs - EARLY_MS) {
+          const mins = Math.ceil((startMs - EARLY_MS - nowMs) / 60000)
+          return res.status(403).json({ error: 'Too early to clock in. Clock-in opens 15 minutes before the shift (about ' + mins + ' min from now).' })
+        }
+      }
+      if (job.shiftEnd) {
+        const endMs = new Date(job.shiftEnd).getTime()
+        if (Number.isFinite(endMs) && nowMs > endMs) return res.status(403).json({ error: 'This shift has already ended' })
+      }
       const open = await db.listRows({
         databaseId: DB_ID,
         tableId: 'work_logs',
