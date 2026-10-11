@@ -45,7 +45,30 @@ export default async function handler(req: any, res: any) {
         flagged++
       }
     }
-    return res.status(200).json({ ok: true, checked: jobs.rows.length, flagged })
+    const SOON_MS = 2 * 60 * 60 * 1000
+    const soon = await db.listRows({
+      databaseId: DB_ID,
+      tableId: 'jobs',
+      queries: [
+        Query.greaterThan('shiftStart', new Date(now).toISOString()),
+        Query.lessThan('shiftStart', new Date(now + SOON_MS).toISOString()),
+        Query.limit(100),
+      ],
+    })
+    let alerted = 0
+    for (const job of soon.rows as any[]) {
+      const hs = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'hires',
+        queries: [Query.equal('jobId', job.$id), Query.limit(100)],
+      })
+      for (const h of hs.rows as any[]) {
+        if (h.confirmedAt || h.noShowAt || h.replacedAt || h.unconfirmedAlertAt) continue
+        await db.updateRow({ databaseId: DB_ID, tableId: 'hires', rowId: h.$id, data: { unconfirmedAlertAt: new Date().toISOString() } })
+        alerted++
+      }
+    }
+    return res.status(200).json({ ok: true, checked: jobs.rows.length, flagged, alerted })
   } catch (err) {
     return res.status(500).json({ error: err instanceof Error ? err.message : 'Failed' })
   }

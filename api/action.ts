@@ -132,6 +132,14 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, stats })
     }
 
+    if (body.type === 'confirm_shift') {
+      const hire: any = await db.getRow({ databaseId: DB_ID, tableId: 'hires', rowId: body.hireId })
+      if (hire.workerId !== caller.$id) return res.status(403).json({ error: 'Not your shift' })
+      if (hire.noShowAt || hire.replacedAt) return res.status(400).json({ error: 'This hire is no longer active' })
+      if (!hire.confirmedAt) await db.updateRow({ databaseId: DB_ID, tableId: 'hires', rowId: hire.$id, data: { confirmedAt: new Date().toISOString() } })
+      return res.status(200).json({ ok: true })
+    }
+
     if (body.type === 'clockin') {
       const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId })
       const hired = await db.listRows({
