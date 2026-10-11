@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
+import { account } from '../lib/appwrite'
 
 export default function Login() {
   const { user, login, signup } = useAuth()
@@ -12,8 +13,25 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [showPw, setShowPw] = useState(false)
+  const [info, setInfo] = useState('')
 
   if (user) return <Navigate to="/dashboard/compliance" replace />
+
+  async function sendReset() {
+    setError('')
+    setInfo('')
+    if (!email) {
+      setError('Enter your email above first, then tap Forgot password')
+      return
+    }
+    try {
+      await account.createRecovery({ email, url: window.location.origin + '/reset-password' })
+      setInfo('If that email has an account, a reset link is on its way. Check your spam folder too.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send reset email')
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -46,8 +64,13 @@ export default function Login() {
           </>
         )}
         <input className="w-full border border-slate-200 rounded-xl p-3" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input className="w-full border border-slate-200 rounded-xl p-3" type="password" placeholder="Password (8+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+        <div className="relative">
+          <input className="w-full border border-slate-200 rounded-xl p-3 pr-16" type={showPw ? 'text' : 'password'} placeholder="Password (8+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
+          <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-500">{showPw ? 'Hide' : 'Show'}</button>
+        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {info && <p className="text-sm text-emerald-700">{info}</p>}
+        {mode === 'login' && <button type="button" onClick={sendReset} className="w-full text-sm font-bold text-slate-700 underline">Forgot password?</button>}
         <button type="submit" disabled={busy} className="w-full bg-slate-900 text-white font-bold rounded-xl p-3 disabled:opacity-50">
           {busy ? 'Please wait...' : mode === 'login' ? 'Sign in' : 'Create account'}
         </button>

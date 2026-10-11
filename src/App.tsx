@@ -11,6 +11,7 @@ import EmployerProfile from './pages/EmployerProfile';
 import AdminEmployers from './components/admin/AdminEmployers';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import ResetPassword from './pages/ResetPassword';
 import AdminDocuments from './components/admin/AdminDocuments';
 import AdminProfitOps from './components/admin/AdminProfitOps';
 import MobileClockIn from './components/worker/MobileClockIn';
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Core Secure Business Application Routes Layer */}
           <Route path="/dashboard" element={<AuthenticatedLayout />}>
