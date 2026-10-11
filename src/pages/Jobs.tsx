@@ -8,7 +8,7 @@ const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Heal
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
 
 type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean; shiftStart?: string; shiftEnd?: string }
-type Row = { $id: string; jobId: string; workerId: string; workerName?: string }
+type Row = { $id: string; jobId: string; workerId: string; workerName?: string; noShowAt?: string }
 
 function toLocalInput(iso?: string) {
   if (!iso) return ''
@@ -248,7 +248,7 @@ export default function Jobs() {
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}
             {!isEmployer && (
               hires.some((h) => h.jobId === j.$id) ? (
-                <div className="mt-3 text-xs font-bold text-emerald-700">Hired</div>
+                hires.some((h) => h.jobId === j.$id && h.noShowAt) ? <div className="mt-3 text-xs font-bold text-red-600">Marked as no-show</div> : <div className="mt-3 text-xs font-bold text-emerald-700">Hired</div>
               ) : apps.some((a) => a.jobId === j.$id) ? (
                 <div className="mt-3 text-xs font-bold text-slate-500">Applied</div>
               ) : (
@@ -263,7 +263,7 @@ export default function Jobs() {
                   <div key={a.$id} className="flex items-center justify-between gap-2 text-sm border rounded-xl p-2">
                     <span className="break-all">{a.workerName || a.workerId.slice(0, 8)}</span>
                     {hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)
-                      ? <span className="text-xs font-bold text-emerald-700">Hired</span>
+                      ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="text-xs font-bold text-red-600">No-show</span> : <span className="text-xs font-bold text-emerald-700">Hired</span>)
                       : <button onClick={() => hire(j, a)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Hire</button>}
                   </div>
                 ))}
