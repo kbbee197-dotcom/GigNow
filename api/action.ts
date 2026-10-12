@@ -3,6 +3,7 @@ import { notify } from './_notify.js'
 
 const DB_ID = 'gignow'
 const PREFS_TABLE = '6acc1930001673ed260c'
+const MESSAGES_TABLE = '6acc1af3001982d10959'
 
 // Sourced starting list of strict broad ABC-test states as of 2026 — confirm with counsel before changing.
 const STRICT_ABC_STATES = new Set(['CA', 'MA', 'NJ'])
@@ -173,6 +174,47 @@ export default async function handler(req: any, res: any) {
           rowId: ID.unique(),
           data: { userId: caller.$id, ...data },
           permissions: [Permission.read(Role.user(caller.$id)), Permission.update(Role.user(caller.$id))],
+        })
+      }
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'send_message') {
+      const text = String(body.text || '').trim().slice(0, 1000)
+      if (!text) return res.status(400).json({ error: 'Message is empty' })
+      const jobId = String(body.jobId || '')
+      const workerId = String(body.workerId || '')
+      const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: jobId })
+      const isEmp = job.employerId === caller.$id
+      if (!isEmp && workerId !== caller.$id) return res.status(403).json({ error: 'Not part of this conversation' })
+      const hs = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'hires',
+        queries: [Query.equal('jobId', jobId), Query.equal('workerId', workerId), Query.limit(10)],
+      })
+      if (!(hs.rows as any[]).some((h) => !h.replacedAt)) return res.status(403).json({ error: 'Messaging opens once a worker is hired for this job' })
+      const recipientId = isEmp ? workerId : job.employerId
+      const threadId = 'job_' + jobId + '_' + workerId
+      const recent = await db.listRows({
+        databaseId: DB_ID,
+        tableId: MESSAGES_TABLE,
+        queries: [Query.equal('threadId', threadId), Query.orderDesc('$createdAt'), Query.limit(5)],
+      })
+      const alreadyUnread = (recent.rows as any[]).some((m) => m.senderId === caller.$id && !m.readAt)
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: MESSAGES_TABLE,
+        rowId: ID.unique(),
+        data: { threadId, senderId: caller.$id, recipientId, body: text },
+        permissions: [Permission.read(Role.user(caller.$id)), Permission.read(Role.user(recipientId)), Permission.update(Role.user(recipientId))],
+      })
+      if (!alreadyUnread) {
+        await notify(db, {
+          userId: recipientId,
+          type: 'message',
+          title: 'New message: ' + job.title,
+          body: text.slice(0, 120),
+          link: '/dashboard/messages?job=' + jobId + '&worker=' + workerId,
         })
       }
       return res.status(200).json({ ok: true })

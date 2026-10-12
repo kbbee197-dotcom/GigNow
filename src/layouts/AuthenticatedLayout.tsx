@@ -48,6 +48,7 @@ export default function AuthenticatedLayout() {
           <nav className="flex flex-wrap md:flex-col gap-x-4 gap-y-2">
             <Link className={link} to="/dashboard/jobs">Jobs</Link>
             <Link className={link} to="/dashboard/inbox">Inbox{unread > 0 ? ' (' + unread + ')' : ''}</Link>
+            <Link className={link} to="/dashboard/messages">Messages</Link>
             <Link className={link} to="/dashboard/settings">Settings</Link>
             <Link className={link} to="/dashboard/compliance">Documents</Link>
             <Link className={link} to="/dashboard/clock-in">Clock in</Link>
