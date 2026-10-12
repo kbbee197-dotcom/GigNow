@@ -13,6 +13,7 @@ import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 import ResetPassword from './pages/ResetPassword';
 import Inbox from './pages/Inbox';
+import Settings from './pages/Settings';
 import AdminDocuments from './components/admin/AdminDocuments';
 import AdminProfitOps from './components/admin/AdminProfitOps';
 import MobileClockIn from './components/worker/MobileClockIn';
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="admin/employers" element={<RequireAdmin><AdminEmployers /></RequireAdmin>} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="inbox" element={<Inbox />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="clock-in" element={<MobileClockIn />} />
             <Route path="compliance" element={<WorkerComplianceVault />} />
           </Route>

@@ -2,6 +2,7 @@ import { Account, Client, ID, Permission, Query, Role, TablesDB } from 'node-app
 import { notify } from './_notify.js'
 
 const DB_ID = 'gignow'
+const PREFS_TABLE = '6acc1930001673ed260c'
 
 // Sourced starting list of strict broad ABC-test states as of 2026 — confirm with counsel before changing.
 const STRICT_ABC_STATES = new Set(['CA', 'MA', 'NJ'])
@@ -140,6 +141,41 @@ export default async function handler(req: any, res: any) {
         for (const h of hs.rows as any[]) if (h.noShowAt && stats[h.workerId]) stats[h.workerId].noShows++
       }
       return res.status(200).json({ ok: true, stats })
+    }
+
+    if (body.type === 'save_prefs') {
+      const raw = String(body.phone || '').replace(/[^0-9]/g, '')
+      let phone = ''
+      if (raw.length === 10) phone = '+1' + raw
+      else if (raw.length === 11 && raw.startsWith('1')) phone = '+' + raw
+      else if (raw.length > 0) return res.status(400).json({ error: 'Enter a valid US phone number (10 digits)' })
+      const emailOptIn = body.emailOptIn !== false
+      const smsOptIn = body.smsOptIn === true
+      const voiceOptIn = body.voiceOptIn === true
+      if ((smsOptIn || voiceOptIn) && !phone) return res.status(400).json({ error: 'Add a phone number to turn on texts or calls' })
+      const existing = await db.listRows({ databaseId: DB_ID, tableId: PREFS_TABLE, queries: [Query.equal('userId', caller.$id), Query.limit(1)] })
+      const prev: any = existing.rows[0]
+      const nowIso = new Date().toISOString()
+      const data: any = {
+        phone,
+        emailOptIn,
+        smsOptIn,
+        voiceOptIn,
+        smsConsentAt: smsOptIn ? (prev && prev.smsOptIn && prev.smsConsentAt ? prev.smsConsentAt : nowIso) : null,
+        voiceConsentAt: voiceOptIn ? (prev && prev.voiceOptIn && prev.voiceConsentAt ? prev.voiceConsentAt : nowIso) : null,
+      }
+      if (prev) {
+        await db.updateRow({ databaseId: DB_ID, tableId: PREFS_TABLE, rowId: prev.$id, data })
+      } else {
+        await db.createRow({
+          databaseId: DB_ID,
+          tableId: PREFS_TABLE,
+          rowId: ID.unique(),
+          data: { userId: caller.$id, ...data },
+          permissions: [Permission.read(Role.user(caller.$id)), Permission.update(Role.user(caller.$id))],
+        })
+      }
+      return res.status(200).json({ ok: true })
     }
 
     if (body.type === 'confirm_shift') {
