@@ -1,10 +1,37 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { Query } from 'appwrite'
+import { tablesDB, DB_ID, NOTIFS_TABLE } from '../lib/appwrite'
 import { Link, Navigate, Outlet } from 'react-router-dom'
 import GlobalLegalGuard from '../components/legal/GlobalLegalGuard'
 import { useAuth } from '../lib/AuthContext'
 
 export default function AuthenticatedLayout() {
   const { user, loading, logout } = useAuth()
+  const [unread, setUnread] = useState(0)
+  const uid = user?.$id
+
+  useEffect(() => {
+    if (!uid) return
+    let stop = false
+    async function check() {
+      try {
+        const r = await tablesDB.listRows({
+          databaseId: DB_ID,
+          tableId: NOTIFS_TABLE,
+          queries: [Query.equal('userId', uid as string), Query.isNull('readAt'), Query.limit(50)],
+        })
+        if (!stop) setUnread(r.total)
+      } catch {
+        /* inbox count is optional */
+      }
+    }
+    check()
+    const t = setInterval(check, 60000)
+    return () => {
+      stop = true
+      clearInterval(t)
+    }
+  }, [uid])
 
   if (loading) return <div className="h-screen w-screen bg-slate-50" />
   if (!user) return <Navigate to="/login" replace />
@@ -20,6 +47,7 @@ export default function AuthenticatedLayout() {
           <div>GigNow</div>
           <nav className="flex flex-wrap md:flex-col gap-x-4 gap-y-2">
             <Link className={link} to="/dashboard/jobs">Jobs</Link>
+            <Link className={link} to="/dashboard/inbox">Inbox{unread > 0 ? ' (' + unread + ')' : ''}</Link>
             <Link className={link} to="/dashboard/compliance">Documents</Link>
             <Link className={link} to="/dashboard/clock-in">Clock in</Link>
             <Link className={link} to="/dashboard/shifts">Approve shifts</Link>

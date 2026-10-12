@@ -1,4 +1,5 @@
 import { Client, Query, TablesDB } from 'node-appwrite'
+import { notify } from './_notify.js'
 
 const DB_ID = 'gignow'
 const GRACE_MS = 15 * 60 * 1000
@@ -42,6 +43,7 @@ export default async function handler(req: any, res: any) {
         })
         if ((logs.rows as any[]).some((l) => l.jobId === job.$id)) continue
         await db.updateRow({ databaseId: DB_ID, tableId: 'hires', rowId: h.$id, data: { noShowAt: new Date().toISOString() } })
+        await notify(db, { userId: job.employerId, type: 'no_show', title: 'No-show: ' + job.title, body: 'A hired worker did not clock in. Open Jobs to replace them.', link: '/dashboard/jobs' })
         flagged++
       }
     }
@@ -65,6 +67,8 @@ export default async function handler(req: any, res: any) {
       for (const h of hs.rows as any[]) {
         if (h.confirmedAt || h.noShowAt || h.replacedAt || h.unconfirmedAlertAt) continue
         await db.updateRow({ databaseId: DB_ID, tableId: 'hires', rowId: h.$id, data: { unconfirmedAlertAt: new Date().toISOString() } })
+        await notify(db, { userId: h.workerId, type: 'confirm_reminder', title: 'Confirm your shift: ' + job.title, body: 'Your shift starts soon. Open Jobs and tap Confirm I am coming.', link: '/dashboard/jobs' })
+        await notify(db, { userId: job.employerId, type: 'unconfirmed_employer', title: 'Unconfirmed shift: ' + job.title, body: 'A hired worker has not confirmed and the shift starts within 2 hours.', link: '/dashboard/jobs' })
         alerted++
       }
     }

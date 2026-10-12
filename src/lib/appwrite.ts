@@ -18,4 +18,8 @@ export const HIRES_TABLE = 'hires'
 export const LOGS_TABLE = 'work_logs'
 export const EMPLOYER_TABLE = 'employer_profiles'
 export const EOR_TABLE = '6ac9a5d4001830da0b4f'
+export const NOTIFS_TABLE = 'notifications'
+export const PREFS_TABLE = 'contact_prefs'
+export const MESSAGES_TABLE = 'messages'
+export const COMMENTS_TABLE = 'comments'
 export { client }

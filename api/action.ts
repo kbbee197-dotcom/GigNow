@@ -1,4 +1,5 @@
 import { Account, Client, ID, Permission, Query, Role, TablesDB } from 'node-appwrite'
+import { notify } from './_notify.js'
 
 const DB_ID = 'gignow'
 
@@ -87,6 +88,7 @@ export default async function handler(req: any, res: any) {
           data: { jobId: job.$id, workerId: application.workerId, employerId: caller.$id, applicationId: application.$id },
           permissions: [Permission.read(Role.user(application.workerId)), Permission.read(Role.user(caller.$id)), Permission.read(Role.label('admin'))],
         })
+        await notify(db, { userId: application.workerId, type: 'hired', title: 'You were hired: ' + job.title, body: 'Open Jobs to confirm your shift and see the details.', link: '/dashboard/jobs' })
       }
       if (job.reopenedAt) await db.updateRow({ databaseId: DB_ID, tableId: 'jobs', rowId: job.$id, data: { reopenedAt: null } })
       return res.status(200).json({ ok: true })
@@ -100,6 +102,14 @@ export default async function handler(req: any, res: any) {
         const nowIso = new Date().toISOString()
         await db.updateRow({ databaseId: DB_ID, tableId: 'hires', rowId: hire.$id, data: { replacedAt: nowIso } })
         await db.updateRow({ databaseId: DB_ID, tableId: 'jobs', rowId: hire.jobId, data: { reopenedAt: nowIso } })
+        const rJob: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: hire.jobId })
+        const rApps = await db.listRows({ databaseId: DB_ID, tableId: 'applications', queries: [Query.equal('jobId', hire.jobId), Query.limit(50)] })
+        const rHires = await db.listRows({ databaseId: DB_ID, tableId: 'hires', queries: [Query.equal('jobId', hire.jobId), Query.limit(100)] })
+        const taken = new Set((rHires.rows as any[]).filter((x) => !x.replacedAt && !x.noShowAt).map((x) => x.workerId))
+        for (const a of rApps.rows as any[]) {
+          if (taken.has(a.workerId) || a.workerId === hire.workerId) continue
+          await notify(db, { userId: a.workerId, type: 'urgent_opening', title: 'Urgent opening: ' + rJob.title, body: 'A spot just reopened on this job. Check Jobs for details.', link: '/dashboard/jobs' })
+        }
       }
       return res.status(200).json({ ok: true })
     }
