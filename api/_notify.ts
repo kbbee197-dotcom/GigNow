@@ -1,6 +1,8 @@
 import { ID, Permission, Query, Role, TablesDB } from 'node-appwrite'
 
 const DB_ID = 'gignow'
+const NOTIFS_TABLE = '6acc0a5f000cd80428e0'
+const PREFS_TABLE = '6acc1930001673ed260c'
 
 export type NotifyInput = {
   userId: string
@@ -40,7 +42,7 @@ export async function notify(db: TablesDB, input: NotifyInput): Promise<void> {
     try {
       const p = await db.listRows({
         databaseId: DB_ID,
-        tableId: 'contact_prefs',
+        tableId: PREFS_TABLE,
         queries: [Query.equal('userId', input.userId), Query.limit(1)],
       })
       prefs = p.rows[0] || null
@@ -57,7 +59,7 @@ export async function notify(db: TablesDB, input: NotifyInput): Promise<void> {
         : 'not_opted_in'
     await db.createRow({
       databaseId: DB_ID,
-      tableId: 'notifications',
+      tableId: NOTIFS_TABLE,
       rowId: ID.unique(),
       data: {
         userId: input.userId,
