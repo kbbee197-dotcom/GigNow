@@ -4,6 +4,7 @@ import { tablesDB, DB_ID, JOBS_TABLE, APPS_TABLE, HIRES_TABLE } from '../lib/app
 import { useAuth } from '../lib/AuthContext'
 import { callAction } from '../lib/api'
 import JobComments from '../components/JobComments'
+import ReviewWorker from '../components/ReviewWorker'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
@@ -25,7 +26,7 @@ export default function Jobs() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [apps, setApps] = useState<Row[]>([])
   const [hires, setHires] = useState<Row[]>([])
-  const [stats, setStats] = useState<Record<string, { completed: number; noShows: number }>>({})
+  const [stats, setStats] = useState<Record<string, { completed: number; noShows: number; rating?: number; ratings?: number }>>({})
   const [title, setTitle] = useState('')
   const [industry, setIndustry] = useState(INDUSTRIES[0])
   const [state, setState] = useState('')
@@ -185,7 +186,7 @@ export default function Jobs() {
   function statsLabel(workerId: string) {
     const st = stats[workerId]
     if (!st) return ''
-    return st.completed + (st.completed === 1 ? ' shift' : ' shifts') + ' · ' + st.noShows + (st.noShows === 1 ? ' no-show' : ' no-shows')
+    return st.completed + (st.completed === 1 ? ' shift' : ' shifts') + ' · ' + st.noShows + (st.noShows === 1 ? ' no-show' : ' no-shows') + (st.ratings ? ' · ★ ' + st.rating + ' (' + st.ratings + ')' : '')
   }
 
   async function confirmShift(hireId: string) {
@@ -311,7 +312,7 @@ export default function Jobs() {
                       {stats[a.workerId] && <div className={'text-xs ' + (stats[a.workerId].noShows > 0 ? 'text-red-600' : 'text-slate-500')}>{statsLabel(a.workerId)}</div>}
                     </div>
                     {hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)
-                      ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="flex items-center gap-2"><span className="text-xs font-bold text-red-600">{hireFor(j, a)?.replacedAt ? 'Replaced' : 'No-show'}</span>{!hireFor(j, a)?.replacedAt && <button onClick={() => replaceHire(hireFor(j, a)!.$id)} className="bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Replace</button>}</span> : <span className="flex flex-col items-end"><span className="text-xs font-bold text-emerald-700">Hired</span>{j.shiftStart && (hireFor(j, a)?.confirmedAt ? <span className="text-xs text-emerald-700">Confirmed</span> : <span className={'text-xs ' + (hireFor(j, a)?.unconfirmedAlertAt ? 'text-orange-600 font-bold' : 'text-slate-500')}>{hireFor(j, a)?.unconfirmedAlertAt ? 'Not confirmed, shift soon' : 'Not confirmed yet'}</span>)}</span>)
+                      ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="flex items-center gap-2"><span className="text-xs font-bold text-red-600">{hireFor(j, a)?.replacedAt ? 'Replaced' : 'No-show'}</span>{!hireFor(j, a)?.replacedAt && <button onClick={() => replaceHire(hireFor(j, a)!.$id)} className="bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Replace</button>}</span> : <span className="flex flex-col items-end"><span className="text-xs font-bold text-emerald-700">Hired</span><ReviewWorker jobId={j.$id} workerId={a.workerId} />{j.shiftStart && (hireFor(j, a)?.confirmedAt ? <span className="text-xs text-emerald-700">Confirmed</span> : <span className={'text-xs ' + (hireFor(j, a)?.unconfirmedAlertAt ? 'text-orange-600 font-bold' : 'text-slate-500')}>{hireFor(j, a)?.unconfirmedAlertAt ? 'Not confirmed, shift soon' : 'Not confirmed yet'}</span>)}</span>)
                       : <button onClick={() => hire(j, a)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Hire</button>}
                   </div>
                 ))}

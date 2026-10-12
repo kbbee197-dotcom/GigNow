@@ -126,8 +126,8 @@ export default async function handler(req: any, res: any) {
       const ep: any = prof.rows[0]
       if (!isAdmin && (!ep || ep.status !== 'approved')) return res.status(403).json({ error: 'Employers only' })
       const ids = Array.from(new Set((Array.isArray(body.workerIds) ? body.workerIds : []).map(String))).slice(0, 50)
-      const stats: Record<string, { completed: number; noShows: number }> = {}
-      for (const id of ids) stats[id] = { completed: 0, noShows: 0 }
+      const stats: Record<string, { completed: number; noShows: number; rating: number; ratings: number }> = {}
+      for (const id of ids) stats[id] = { completed: 0, noShows: 0, rating: 0, ratings: 0 }
       if (ids.length > 0) {
         const logs = await db.listRows({
           databaseId: DB_ID,
@@ -141,6 +141,14 @@ export default async function handler(req: any, res: any) {
           queries: [Query.equal('workerId', ids), Query.limit(500)],
         })
         for (const h of hs.rows as any[]) if (h.noShowAt && stats[h.workerId]) stats[h.workerId].noShows++
+        const rv = await db.listRows({ databaseId: DB_ID, tableId: COMMENTS_TABLE, queries: [Query.equal('subjectId', ids), Query.limit(500)] })
+        for (const c of rv.rows as any[]) {
+          if (c.kind === 'worker_review' && stats[c.subjectId]) {
+            stats[c.subjectId].ratings++
+            stats[c.subjectId].rating += Number(c.rating) || 0
+          }
+        }
+        for (const id of ids) if (stats[id].ratings > 0) stats[id].rating = Math.round((stats[id].rating / stats[id].ratings) * 10) / 10
       }
       return res.status(200).json({ ok: true, stats })
     }
@@ -278,6 +286,36 @@ export default async function handler(req: any, res: any) {
         permissions: [Permission.read(Role.users())],
       })
       if (notifyId) await notify(db, { userId: notifyId, type: 'comment', title: notifyTitle, body: text.slice(0, 120), link: '/dashboard/jobs' })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'review_worker') {
+      const text = String(body.body || '').trim().slice(0, 1000)
+      if (!text) return res.status(400).json({ error: 'Write a short note about the worker' })
+      const rating = Math.round(Number(body.rating))
+      if (!Number.isFinite(rating) || rating < 1 || rating > 5) return res.status(400).json({ error: 'Pick a rating from 1 to 5' })
+      const jobId = String(body.jobId || '')
+      const workerId = String(body.workerId || '')
+      const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: jobId })
+      if (job.employerId !== caller.$id) return res.status(403).json({ error: 'Only the job owner can review workers' })
+      const logs = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'work_logs',
+        queries: [Query.equal('workerId', workerId), Query.equal('status', 'done'), Query.limit(100)],
+      })
+      if (!(logs.rows as any[]).some((l) => l.jobId === jobId)) return res.status(403).json({ error: 'You can review a worker after they complete a shift on this job' })
+      const prior = await db.listRows({ databaseId: DB_ID, tableId: COMMENTS_TABLE, queries: [Query.equal('subjectId', workerId), Query.limit(100)] })
+      if ((prior.rows as any[]).some((c) => c.kind === 'worker_review' && c.jobId === jobId && c.authorId === caller.$id)) {
+        return res.status(400).json({ error: 'You already reviewed this worker for this job' })
+      }
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: COMMENTS_TABLE,
+        rowId: ID.unique(),
+        data: { jobId, employerId: job.employerId, authorId: caller.$id, authorName: String(caller.name || 'Employer').slice(0, 80), kind: 'worker_review', subjectId: workerId, body: text, rating },
+        permissions: [Permission.read(Role.user(caller.$id)), Permission.read(Role.user(workerId)), Permission.read(Role.label('admin'))],
+      })
+      await notify(db, { userId: workerId, type: 'worker_review', title: 'New review from an employer: ' + job.title, body: rating + ' of 5. ' + text.slice(0, 100), link: '/dashboard/inbox' })
       return res.status(200).json({ ok: true })
     }
 

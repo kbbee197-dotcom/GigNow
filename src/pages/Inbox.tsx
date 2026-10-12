@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Query } from 'appwrite'
 import { tablesDB, DB_ID, NOTIFS_TABLE } from '../lib/appwrite'
 import { useAuth } from '../lib/AuthContext'
+import MyReviews from '../components/MyReviews'
 
 type Note = { $id: string; $createdAt: string; title: string; body?: string; link?: string; readAt?: string | null }
 
@@ -73,6 +74,7 @@ export default function Inbox() {
           </li>
         ))}
       </ul>
+      <MyReviews />
     </div>
   )
 }
