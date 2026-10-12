@@ -19,6 +19,9 @@ export default function Terms() {
       <h2 className="text-lg font-bold text-slate-900 pt-2">AI-assisted features</h2>
       <p>GigNow may use AI tools to suggest job descriptions and pay ranges. These suggestions are drafts only; employers are responsible for reviewing and editing them before posting.</p>
 
+      <h2 className="text-lg font-bold text-slate-900 pt-2">Notifications, texts, and calls</h2>
+      <p>GigNow sends alerts about jobs, hiring, and shifts to your in-app Inbox. If you add a mobile number and opt in, we may also send you email, text messages, and automated phone calls about these matters. Message frequency varies, and message and data rates may apply. Reply STOP to any text, or change your choices in Settings, to stop receiving them. You do not have to opt in to texts or calls to use GigNow.</p>
+
       <h2 className="text-lg font-bold text-slate-900 pt-2">Conduct</h2>
       <p>You agree not to submit false information, impersonate another person or business, or use GigNow for any unlawful purpose. GigNow may suspend or remove accounts that violate these terms.</p>
 

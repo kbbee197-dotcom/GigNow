@@ -11,6 +11,7 @@ export default function Privacy() {
         <li>Your device's GPS location at the moment you clock in or out of a shift, used only to confirm you were at the job site.</li>
         <li>Business details submitted by employers for verification, such as business name and phone number.</li>
         <li>Job postings, applications, hiring records, and shift and pay records.</li>
+        <li>If you choose to add them: your mobile phone number and your notification choices (email, text, and phone call alerts), along with the date and time you agreed to receive texts or calls.</li>
       </ul>
 
       <h2 className="text-lg font-bold text-slate-900 pt-2">How we use it</h2>
@@ -21,6 +22,9 @@ export default function Privacy() {
 
       <h2 className="text-lg font-bold text-slate-900 pt-2">Where it's stored</h2>
       <p>GigNow's data is stored with Appwrite, a cloud database and authentication provider. Job-description assistance is processed by Google's Gemini AI service. We do not currently process payments; pay amounts shown in the app are records, not live money transfers.</p>
+
+      <h2 className="text-lg font-bold text-slate-900 pt-2">Text and call alerts</h2>
+      <p>Text and call alerts are optional and are only sent if you add a mobile number in Settings and check the box for that kind of alert. We use your number only to send the alerts you choose, such as shift reminders, hiring updates, and urgent notices. We do not share your phone number with third parties for their marketing. A messaging provider may deliver texts and calls on our behalf. Message frequency varies, and message and data rates may apply. You can reply STOP to any text, or turn alerts off in Settings, at any time. Consent to texts or calls is not required to use GigNow.</p>
 
       <h2 className="text-lg font-bold text-slate-900 pt-2">Your choices</h2>
       <p>You can review the compliance documents you've uploaded and their review status in your account. To request deletion of your account or data, or to ask any question about this policy, contact us using the information below.</p>
