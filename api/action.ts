@@ -4,6 +4,7 @@ import { notify } from './_notify.js'
 const DB_ID = 'gignow'
 const PREFS_TABLE = '6acc1930001673ed260c'
 const MESSAGES_TABLE = '6acc1af3001982d10959'
+const COMMENTS_TABLE = '6acc1c2500289c4d562c'
 
 // Sourced starting list of strict broad ABC-test states as of 2026 — confirm with counsel before changing.
 const STRICT_ABC_STATES = new Set(['CA', 'MA', 'NJ'])
@@ -217,6 +218,88 @@ export default async function handler(req: any, res: any) {
           link: '/dashboard/messages?job=' + jobId + '&worker=' + workerId,
         })
       }
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'post_comment') {
+      const text = String(body.body || '').trim().slice(0, 1000)
+      if (!text) return res.status(400).json({ error: 'Comment is empty' })
+      const kind = body.kind === 'review' ? 'review' : 'question'
+      const jobId = String(body.jobId || '')
+      const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: jobId })
+      const isOwner = job.employerId === caller.$id
+      const existing = await db.listRows({ databaseId: DB_ID, tableId: COMMENTS_TABLE, queries: [Query.equal('jobId', jobId), Query.limit(100)] })
+      const rows = existing.rows as any[]
+      const lastMinute = rows.filter((c) => c.authorId === caller.$id && Date.now() - new Date(c.$createdAt).getTime() < 60000)
+      if (lastMinute.length >= 3) return res.status(429).json({ error: 'Slow down a little, then try again' })
+      const data: any = {
+        jobId,
+        employerId: job.employerId,
+        authorId: caller.$id,
+        authorName: String(caller.name || 'GigNow user').slice(0, 80),
+        kind,
+        body: text,
+      }
+      let notifyId = ''
+      let notifyTitle = ''
+      if (kind === 'review') {
+        if (isOwner) return res.status(403).json({ error: 'You cannot review your own job' })
+        const rating = Math.round(Number(body.rating))
+        if (!Number.isFinite(rating) || rating < 1 || rating > 5) return res.status(400).json({ error: 'Pick a rating from 1 to 5' })
+        const logs = await db.listRows({
+          databaseId: DB_ID,
+          tableId: 'work_logs',
+          queries: [Query.equal('workerId', caller.$id), Query.equal('status', 'done'), Query.limit(100)],
+        })
+        if (!(logs.rows as any[]).some((l) => l.jobId === jobId)) return res.status(403).json({ error: 'You can review after you complete a shift on this job' })
+        if (rows.some((c) => c.kind === 'review' && c.authorId === caller.$id)) return res.status(400).json({ error: 'You already reviewed this job' })
+        data.rating = rating
+        notifyId = job.employerId
+        notifyTitle = 'New review: ' + job.title
+      } else if (body.parentId) {
+        const parent = rows.find((c) => c.$id === String(body.parentId))
+        if (!parent || parent.kind !== 'question' || parent.parentId) return res.status(400).json({ error: 'Question not found' })
+        if (!isOwner && parent.authorId !== caller.$id) return res.status(403).json({ error: 'Only the employer can answer questions' })
+        data.parentId = parent.$id
+        if (parent.authorId !== caller.$id) {
+          notifyId = parent.authorId
+          notifyTitle = 'Your question was answered: ' + job.title
+        }
+      } else {
+        if (isOwner) return res.status(403).json({ error: 'Employers answer questions rather than asking them' })
+        notifyId = job.employerId
+        notifyTitle = 'New question: ' + job.title
+      }
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: COMMENTS_TABLE,
+        rowId: ID.unique(),
+        data,
+        permissions: [Permission.read(Role.users())],
+      })
+      if (notifyId) await notify(db, { userId: notifyId, type: 'comment', title: notifyTitle, body: text.slice(0, 120), link: '/dashboard/jobs' })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'report_comment') {
+      const c: any = await db.getRow({ databaseId: DB_ID, tableId: COMMENTS_TABLE, rowId: String(body.commentId || '') })
+      if (c.authorId === caller.$id) return res.status(400).json({ error: 'You cannot report your own comment' })
+      if (!c.reportedAt) await db.updateRow({ databaseId: DB_ID, tableId: COMMENTS_TABLE, rowId: c.$id, data: { reportedAt: new Date().toISOString() } })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'delete_comment') {
+      const c: any = await db.getRow({ databaseId: DB_ID, tableId: COMMENTS_TABLE, rowId: String(body.commentId || '') })
+      const isAuthor = c.authorId === caller.$id
+      const ownsQuestion = c.employerId === caller.$id && c.kind === 'question'
+      if (!isAuthor && !isAdmin && !ownsQuestion) return res.status(403).json({ error: 'Not allowed' })
+      if (c.kind === 'question' && !c.parentId) {
+        const all = await db.listRows({ databaseId: DB_ID, tableId: COMMENTS_TABLE, queries: [Query.equal('jobId', c.jobId), Query.limit(100)] })
+        for (const r of all.rows as any[]) {
+          if (r.parentId === c.$id) await db.deleteRow({ databaseId: DB_ID, tableId: COMMENTS_TABLE, rowId: r.$id })
+        }
+      }
+      await db.deleteRow({ databaseId: DB_ID, tableId: COMMENTS_TABLE, rowId: c.$id })
       return res.status(200).json({ ok: true })
     }
 

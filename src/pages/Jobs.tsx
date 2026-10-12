@@ -3,6 +3,7 @@ import { Query } from 'appwrite'
 import { tablesDB, DB_ID, JOBS_TABLE, APPS_TABLE, HIRES_TABLE } from '../lib/appwrite'
 import { useAuth } from '../lib/AuthContext'
 import { callAction } from '../lib/api'
+import JobComments from '../components/JobComments'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
@@ -288,6 +289,7 @@ export default function Jobs() {
             {j.payRateCents != null && <div className="text-xs text-slate-500">${(j.payRateCents / 100).toFixed(2)}/hr</div>}
             {j.geofenceLat != null && <div className="text-xs text-emerald-700">Job site set · {j.geofenceRadius ?? 200} m clock-in radius</div>}
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}
+            <JobComments jobId={j.$id} employerId={j.employerId} />
             {!isEmployer && j.reopenedAt && !hires.some((h) => h.jobId === j.$id) && <div className="mt-2 text-xs font-bold text-orange-600">Urgent opening: a spot just reopened</div>}
             {!isEmployer && (
               hires.some((h) => h.jobId === j.$id) ? (
