@@ -1,4 +1,4 @@
-import { Account, Client, ID, Permission, Query, Role, TablesDB } from 'node-appwrite'
+import { Account, Client, ID, Permission, Query, Role, TablesDB, Users } from 'node-appwrite'
 import { notify } from './_notify.js'
 
 const DB_ID = 'gignow'
@@ -338,6 +338,55 @@ export default async function handler(req: any, res: any) {
         }
       }
       await db.deleteRow({ databaseId: DB_ID, tableId: COMMENTS_TABLE, rowId: c.$id })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'support_send') {
+      const text = String(body.text || '').trim().slice(0, 1000)
+      if (!text) return res.status(400).json({ error: 'Message is empty' })
+      const threadId = 'support_' + caller.$id
+      const recent = await db.listRows({
+        databaseId: DB_ID,
+        tableId: MESSAGES_TABLE,
+        queries: [Query.equal('threadId', threadId), Query.orderDesc('$createdAt'), Query.limit(10)],
+      })
+      const lastMinute = (recent.rows as any[]).filter((m) => m.senderId === caller.$id && Date.now() - new Date(m.$createdAt).getTime() < 60000)
+      if (lastMinute.length >= 5) return res.status(429).json({ error: 'Slow down a little, then try again' })
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: MESSAGES_TABLE,
+        rowId: ID.unique(),
+        data: { threadId, senderId: caller.$id, recipientId: 'support', body: text },
+        permissions: [Permission.read(Role.user(caller.$id)), Permission.read(Role.label('admin'))],
+      })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'support_reply') {
+      if (!isAdmin) return res.status(403).json({ error: 'Admins only' })
+      const text = String(body.text || '').trim().slice(0, 1000)
+      const userId = String(body.userId || '')
+      if (!text || !userId) return res.status(400).json({ error: 'Missing reply' })
+      await db.createRow({
+        databaseId: DB_ID,
+        tableId: MESSAGES_TABLE,
+        rowId: ID.unique(),
+        data: { threadId: 'support_' + userId, senderId: caller.$id, recipientId: userId, body: text },
+        permissions: [Permission.read(Role.user(userId)), Permission.read(Role.label('admin')), Permission.update(Role.user(userId))],
+      })
+      await notify(db, { userId, type: 'support_reply', title: 'GigNow support replied', body: text.slice(0, 120), link: '/dashboard/support' })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'support_user_info') {
+      if (!isAdmin) return res.status(403).json({ error: 'Admins only' })
+      const u: any = await new Users(asServer).get({ userId: String(body.userId || '') })
+      return res.status(200).json({ ok: true, name: u.name || '', email: u.email || '' })
+    }
+
+    if (body.type === 'dismiss_report') {
+      if (!isAdmin) return res.status(403).json({ error: 'Admins only' })
+      await db.updateRow({ databaseId: DB_ID, tableId: COMMENTS_TABLE, rowId: String(body.commentId || ''), data: { reportedAt: null } })
       return res.status(200).json({ ok: true })
     }
 

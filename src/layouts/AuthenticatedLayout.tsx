@@ -49,6 +49,7 @@ export default function AuthenticatedLayout() {
             <Link className={link} to="/dashboard/jobs">Jobs</Link>
             <Link className={link} to="/dashboard/inbox">Inbox{unread > 0 ? ' (' + unread + ')' : ''}</Link>
             <Link className={link} to="/dashboard/messages">Messages</Link>
+            <Link className={link} to="/dashboard/support">Support</Link>
             <Link className={link} to="/dashboard/settings">Settings</Link>
             <Link className={link} to="/dashboard/compliance">Documents</Link>
             <Link className={link} to="/dashboard/clock-in">Clock in</Link>
@@ -57,6 +58,7 @@ export default function AuthenticatedLayout() {
             {isAdmin && <Link className={link} to="/dashboard/admin">Admin</Link>}
             {isAdmin && <Link className={link} to="/dashboard/admin/documents">Review docs</Link>}
             {isAdmin && <Link className={link} to="/dashboard/admin/employers">Review employers</Link>}
+            {isAdmin && <Link className={link} to="/dashboard/admin/support">Support inbox</Link>}
           </nav>
           <button onClick={logout} className="text-sm font-normal text-slate-300 underline">Sign out</button>
           <div className="text-xs text-slate-500 space-x-2 pt-2">

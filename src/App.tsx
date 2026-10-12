@@ -15,6 +15,8 @@ import ResetPassword from './pages/ResetPassword';
 import Inbox from './pages/Inbox';
 import Settings from './pages/Settings';
 import Messages from './pages/Messages';
+import Support from './pages/Support';
+import AdminSupport from './components/admin/AdminSupport';
 import AdminDocuments from './components/admin/AdminDocuments';
 import AdminProfitOps from './components/admin/AdminProfitOps';
 import MobileClockIn from './components/worker/MobileClockIn';
@@ -39,10 +41,12 @@ export default function App() {
             <Route path="shifts" element={<ShiftApprovals />} />
             <Route path="business" element={<EmployerProfile />} />
             <Route path="admin/employers" element={<RequireAdmin><AdminEmployers /></RequireAdmin>} />
+            <Route path="admin/support" element={<RequireAdmin><AdminSupport /></RequireAdmin>} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="inbox" element={<Inbox />} />
             <Route path="settings" element={<Settings />} />
             <Route path="messages" element={<Messages />} />
+            <Route path="support" element={<Support />} />
             <Route path="clock-in" element={<MobileClockIn />} />
             <Route path="compliance" element={<WorkerComplianceVault />} />
           </Route>
