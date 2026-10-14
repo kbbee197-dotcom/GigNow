@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import { callAction } from '../lib/api'
 import JobComments from '../components/JobComments'
 import ReviewWorker from '../components/ReviewWorker'
+import { Link } from 'react-router-dom'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
@@ -294,7 +295,7 @@ export default function Jobs() {
             {!isEmployer && j.reopenedAt && !hires.some((h) => h.jobId === j.$id) && <div className="mt-2 text-xs font-bold text-orange-600">Urgent opening: a spot just reopened</div>}
             {!isEmployer && (
               hires.some((h) => h.jobId === j.$id) ? (
-                hires.some((h) => h.jobId === j.$id && h.noShowAt) ? <div className="mt-3 text-xs font-bold text-red-600">Marked as no-show</div> : <div className="mt-3 flex items-center gap-2"><span className="text-xs font-bold text-emerald-700">Hired</span>{(() => { const mh = hires.find((h) => h.jobId === j.$id); if (!mh || !j.shiftStart) return null; return mh.confirmedAt ? <span className="text-xs font-bold text-emerald-700">Confirmed</span> : <button onClick={() => confirmShift(mh.$id)} className="bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg">Confirm I am coming</button> })()}</div>
+                hires.some((h) => h.jobId === j.$id && h.noShowAt) ? <div className="mt-3 text-xs font-bold text-red-600">Marked as no-show</div> : <div className="mt-3 flex items-center gap-2"><span className="text-xs font-bold text-emerald-700">Hired</span>{(() => { const mh = hires.find((h) => h.jobId === j.$id); if (!mh || !j.shiftStart) return null; return mh.confirmedAt ? <span className="text-xs font-bold text-emerald-700">Confirmed</span> : <button onClick={() => confirmShift(mh.$id)} className="bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg">Confirm I am coming</button> })()}<Link to={'/dashboard/messages?job=' + j.$id + '&worker=' + (user?.$id || '')} className="text-xs font-bold text-slate-700 underline">Message employer</Link></div>
               ) : apps.some((a) => a.jobId === j.$id) ? (
                 <div className="mt-3 text-xs font-bold text-slate-500">Applied</div>
               ) : (
@@ -312,7 +313,7 @@ export default function Jobs() {
                       {stats[a.workerId] && <div className={'text-xs ' + (stats[a.workerId].noShows > 0 ? 'text-red-600' : 'text-slate-500')}>{statsLabel(a.workerId)}</div>}
                     </div>
                     {hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)
-                      ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="flex items-center gap-2"><span className="text-xs font-bold text-red-600">{hireFor(j, a)?.replacedAt ? 'Replaced' : 'No-show'}</span>{!hireFor(j, a)?.replacedAt && <button onClick={() => replaceHire(hireFor(j, a)!.$id)} className="bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Replace</button>}</span> : <span className="flex flex-col items-end"><span className="text-xs font-bold text-emerald-700">Hired</span><ReviewWorker jobId={j.$id} workerId={a.workerId} />{j.shiftStart && (hireFor(j, a)?.confirmedAt ? <span className="text-xs text-emerald-700">Confirmed</span> : <span className={'text-xs ' + (hireFor(j, a)?.unconfirmedAlertAt ? 'text-orange-600 font-bold' : 'text-slate-500')}>{hireFor(j, a)?.unconfirmedAlertAt ? 'Not confirmed, shift soon' : 'Not confirmed yet'}</span>)}</span>)
+                      ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="flex items-center gap-2"><span className="text-xs font-bold text-red-600">{hireFor(j, a)?.replacedAt ? 'Replaced' : 'No-show'}</span>{!hireFor(j, a)?.replacedAt && <button onClick={() => replaceHire(hireFor(j, a)!.$id)} className="bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Replace</button>}</span> : <span className="flex flex-col items-end"><span className="text-xs font-bold text-emerald-700">Hired</span><ReviewWorker jobId={j.$id} workerId={a.workerId} /><Link to={'/dashboard/messages?job=' + j.$id + '&worker=' + a.workerId} className="text-xs font-bold text-slate-700 underline">Message</Link>{j.shiftStart && (hireFor(j, a)?.confirmedAt ? <span className="text-xs text-emerald-700">Confirmed</span> : <span className={'text-xs ' + (hireFor(j, a)?.unconfirmedAlertAt ? 'text-orange-600 font-bold' : 'text-slate-500')}>{hireFor(j, a)?.unconfirmedAlertAt ? 'Not confirmed, shift soon' : 'Not confirmed yet'}</span>)}</span>)
                       : <button onClick={() => hire(j, a)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Hire</button>}
                   </div>
                 ))}
