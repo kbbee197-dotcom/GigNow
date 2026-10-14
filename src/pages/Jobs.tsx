@@ -5,13 +5,14 @@ import { useAuth } from '../lib/AuthContext'
 import { callAction } from '../lib/api'
 import JobComments from '../components/JobComments'
 import ReviewWorker from '../components/ReviewWorker'
+import { WorkerOffer, EmployerOffer } from '../components/Offers'
 import { Link } from 'react-router-dom'
 
 const INDUSTRIES = ['Hospitality & Catering', 'Construction & Facilities', 'Healthcare', 'Retail & E-commerce', 'Logistics & Warehousing', 'Events']
 const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC']
 
-type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean; shiftStart?: string; shiftEnd?: string; reopenedAt?: string }
-type Row = { $id: string; jobId: string; workerId: string; workerName?: string; noShowAt?: string; replacedAt?: string; confirmedAt?: string; unconfirmedAlertAt?: string }
+type Job = { $id: string; employerId: string; title: string; industry: string; description?: string; geofenceLat?: number; geofenceLng?: number; geofenceRadius?: number; payRateCents?: number; state?: string; trackType?: string; isManaged?: boolean; shiftStart?: string; shiftEnd?: string; reopenedAt?: string; openToOffers?: boolean }
+type Row = { $id: string; jobId: string; workerId: string; workerName?: string; noShowAt?: string; replacedAt?: string; confirmedAt?: string; unconfirmedAlertAt?: string; agreedRateCents?: number; proposedRateCents?: number; counterRateCents?: number; offerStatus?: string; offerUpdatedAt?: string }
 
 function toLocalInput(iso?: string) {
   if (!iso) return ''
@@ -35,6 +36,8 @@ export default function Jobs() {
   const [isManaged, setIsManaged] = useState(false)
   const [shiftStart, setShiftStart] = useState('')
   const [shiftEnd, setShiftEnd] = useState('')
+  const [openToOffers, setOpenToOffers] = useState(false)
+  const [bids, setBids] = useState<Record<string, string>>({})
   const [description, setDescription] = useState('')
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [radius, setRadius] = useState('200')
@@ -99,6 +102,7 @@ export default function Jobs() {
     setIsManaged(!!j.isManaged)
     setShiftStart(toLocalInput(j.shiftStart))
     setShiftEnd(toLocalInput(j.shiftEnd))
+    setOpenToOffers(!!j.openToOffers)
     setDescription(j.description ?? '')
     setPayRate(j.payRateCents ? String(j.payRateCents / 100) : '')
     setCoords(j.geofenceLat != null && j.geofenceLng != null ? { lat: j.geofenceLat, lng: j.geofenceLng } : null)
@@ -114,6 +118,7 @@ export default function Jobs() {
     setIsManaged(false)
     setShiftStart('')
     setShiftEnd('')
+    setOpenToOffers(false)
     setDescription('')
     setPayRate('')
     setCoords(null)
@@ -136,6 +141,7 @@ export default function Jobs() {
         isManaged,
         ...(shiftStart ? { shiftStart: new Date(shiftStart).toISOString() } : {}),
         ...(shiftEnd ? { shiftEnd: new Date(shiftEnd).toISOString() } : {}),
+        openToOffers: isManaged ? false : openToOffers,
         description: description.trim(),
         ...(payRate ? { payRateCents: Math.round(Number(payRate) * 100) } : {}),
         ...(coords ? { geofenceLat: coords.lat, geofenceLng: coords.lng, geofenceRadius: Math.max(50, Number(radius) || 200) } : {}),
@@ -173,11 +179,11 @@ export default function Jobs() {
     }
   }
 
-  async function apply(j: Job) {
+  async function apply(j: Job, bid?: string) {
     if (!user) return
     setError('')
     try {
-      await callAction({ type: 'apply', jobId: j.$id })
+      await callAction({ type: 'apply', jobId: j.$id, ...(bid && bid.trim() ? { proposedRate: bid } : {}) })
       await loadJobs()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not apply')
@@ -253,6 +259,10 @@ export default function Jobs() {
             GigNow Managed Staffing (full sourcing, vetting & dispute handling — 30% markup instead of standard fee)
           </label>
           <input className="w-full border border-slate-200 rounded-xl p-3 text-sm" type="number" min="0" step="0.01" placeholder="Hourly pay rate ($)" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={openToOffers && !isManaged} disabled={isManaged} onChange={(e) => setOpenToOffers(e.target.checked)} />
+            Open to offers (workers can propose their own hourly rate)
+          </label>
           <label className="block text-xs text-slate-500">Shift start (optional)
             <input className="w-full border border-slate-200 rounded-xl p-3 text-sm mt-1" type="datetime-local" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
           </label>
@@ -288,7 +298,7 @@ export default function Jobs() {
           <li key={j.$id} className="p-4 bg-white border border-slate-200 rounded-2xl">
             <div className="font-bold text-slate-900">{j.title}</div>
             <div className="text-xs text-slate-500">{j.industry}{j.state ? ' · ' + j.state : ''}{j.trackType && j.trackType !== '1099' ? ' · ' + j.trackType.toUpperCase() : ''}{j.isManaged ? ' · Managed' : ''}</div>
-            {j.payRateCents != null && <div className="text-xs text-slate-500">${(j.payRateCents / 100).toFixed(2)}/hr</div>}
+            {j.payRateCents != null && <div className="text-xs text-slate-500">${(j.payRateCents / 100).toFixed(2)}/hr{j.openToOffers && !j.isManaged ? ' · open to offers' : ''}</div>}
             {j.geofenceLat != null && <div className="text-xs text-emerald-700">Job site set · {j.geofenceRadius ?? 200} m clock-in radius</div>}
             {j.description && <p className="text-sm text-slate-600 mt-2 whitespace-pre-line">{j.description}</p>}
             <JobComments jobId={j.$id} employerId={j.employerId} />
@@ -297,9 +307,14 @@ export default function Jobs() {
               hires.some((h) => h.jobId === j.$id) ? (
                 hires.some((h) => h.jobId === j.$id && h.noShowAt) ? <div className="mt-3 text-xs font-bold text-red-600">Marked as no-show</div> : <div className="mt-3 flex items-center gap-2"><span className="text-xs font-bold text-emerald-700">Hired</span>{(() => { const mh = hires.find((h) => h.jobId === j.$id); if (!mh || !j.shiftStart) return null; return mh.confirmedAt ? <span className="text-xs font-bold text-emerald-700">Confirmed</span> : <button onClick={() => confirmShift(mh.$id)} className="bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg">Confirm I am coming</button> })()}<Link to={'/dashboard/messages?job=' + j.$id + '&worker=' + (user?.$id || '')} className="text-xs font-bold text-slate-700 underline">Message employer</Link></div>
               ) : apps.some((a) => a.jobId === j.$id) ? (
-                <div className="mt-3 text-xs font-bold text-slate-500">Applied</div>
+                (() => { const my = apps.find((a) => a.jobId === j.$id); return my && my.offerStatus ? <WorkerOffer app={my} onChanged={loadJobs} /> : <div className="mt-3 text-xs font-bold text-slate-500">Applied</div> })()
               ) : (
-                <button onClick={() => apply(j)} className="mt-3 bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg">Apply</button>
+                <div className="mt-3 space-y-2">
+                  {j.openToOffers && !j.isManaged && j.payRateCents != null && (
+                    <input className="w-full border border-slate-200 rounded-lg p-2 text-xs" type="number" min="0" step="0.01" placeholder={'Your hourly rate (optional, posted $' + (j.payRateCents / 100).toFixed(2) + ')'} value={bids[j.$id] || ''} onChange={(e) => setBids((p) => ({ ...p, [j.$id]: e.target.value }))} />
+                  )}
+                  <button onClick={() => apply(j, bids[j.$id])} className="bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg">{bids[j.$id] ? 'Apply with my rate' : 'Apply'}</button>
+                </div>
               )
             )}
             {j.employerId === user?.$id && (
@@ -311,6 +326,7 @@ export default function Jobs() {
                     <div>
                       <span className="break-all">{a.workerName || a.workerId.slice(0, 8)}</span>
                       {stats[a.workerId] && <div className={'text-xs ' + (stats[a.workerId].noShows > 0 ? 'text-red-600' : 'text-slate-500')}>{statsLabel(a.workerId)}</div>}
+                      <EmployerOffer app={a} job={j} hired={hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)} onChanged={loadJobs} />
                     </div>
                     {hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId)
                       ? (hires.some((h) => h.jobId === j.$id && h.workerId === a.workerId && h.noShowAt) ? <span className="flex items-center gap-2"><span className="text-xs font-bold text-red-600">{hireFor(j, a)?.replacedAt ? 'Replaced' : 'No-show'}</span>{!hireFor(j, a)?.replacedAt && <button onClick={() => replaceHire(hireFor(j, a)!.$id)} className="bg-orange-600 text-white text-xs font-bold px-3 py-2 rounded-lg">Replace</button>}</span> : <span className="flex flex-col items-end"><span className="text-xs font-bold text-emerald-700">Hired</span><ReviewWorker jobId={j.$id} workerId={a.workerId} /><Link to={'/dashboard/messages?job=' + j.$id + '&worker=' + a.workerId} className="text-xs font-bold text-slate-700 underline">Message</Link>{j.shiftStart && (hireFor(j, a)?.confirmedAt ? <span className="text-xs text-emerald-700">Confirmed</span> : <span className={'text-xs ' + (hireFor(j, a)?.unconfirmedAlertAt ? 'text-orange-600 font-bold' : 'text-slate-500')}>{hireFor(j, a)?.unconfirmedAlertAt ? 'Not confirmed, shift soon' : 'Not confirmed yet'}</span>)}</span>)

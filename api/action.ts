@@ -1,10 +1,26 @@
 import { Account, Client, ID, Permission, Query, Role, TablesDB, Users } from 'node-appwrite'
 import { notify } from './_notify.js'
+import { minWageCents } from './_minwage.js'
 
 const DB_ID = 'gignow'
 const PREFS_TABLE = '6acc1930001673ed260c'
 const MESSAGES_TABLE = '6acc1af3001982d10959'
 const COMMENTS_TABLE = '6acc1c2500289c4d562c'
+const OFFER_TTL_MS = 72 * 60 * 60 * 1000
+
+function offerExpired(app: any) {
+  return (app.offerStatus === 'pending' || app.offerStatus === 'countered') && !!app.offerUpdatedAt && Date.now() - new Date(app.offerUpdatedAt).getTime() > OFFER_TTL_MS
+}
+
+function checkBid(job: any, cents: number): string {
+  const posted = Number(job.payRateCents)
+  if (!Number.isFinite(posted) || posted <= 0) return 'This job has no posted rate to bid against'
+  if (!Number.isInteger(cents) || cents <= 0) return 'Enter a valid hourly rate'
+  if (cents < Math.round(posted * 0.5) || cents > Math.round(posted * 2)) return 'The rate must be between 50% and 200% of the posted rate'
+  const floor = minWageCents(job.state)
+  if (cents < floor) return 'The rate cannot be below the minimum wage for ' + (job.state || 'this state') + ' ($' + (floor / 100).toFixed(2) + '/hr)'
+  return ''
+}
 
 // Sourced starting list of strict broad ABC-test states as of 2026 — confirm with counsel before changing.
 const STRICT_ABC_STATES = new Set(['CA', 'MA', 'NJ'])
@@ -57,19 +73,31 @@ export default async function handler(req: any, res: any) {
 
     if (body.type === 'apply') {
       const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: body.jobId })
+      const hasBid = body.proposedRate != null && String(body.proposedRate).trim() !== ''
+      let bidCents = 0
+      if (hasBid) {
+        if (!job.openToOffers || job.isManaged) return res.status(400).json({ error: 'This job is not open to offers' })
+        bidCents = Math.round(Number(body.proposedRate) * 100)
+        const badBid = checkBid(job, bidCents)
+        if (badBid) return res.status(400).json({ error: badBid })
+      }
       const existing = await db.listRows({
         databaseId: DB_ID,
         tableId: 'applications',
         queries: [Query.equal('jobId', job.$id), Query.equal('workerId', caller.$id), Query.limit(1)],
       })
+      if (existing.total > 0 && hasBid) return res.status(400).json({ error: 'You already applied to this job' })
       if (existing.total === 0) {
         await db.createRow({
           databaseId: DB_ID,
           tableId: 'applications',
           rowId: ID.unique(),
-          data: { jobId: job.$id, workerId: caller.$id, employerId: job.employerId, workerName: String(caller.name || '').slice(0, 120) },
+          data: { jobId: job.$id, workerId: caller.$id, employerId: job.employerId, workerName: String(caller.name || '').slice(0, 120), ...(hasBid ? { proposedRateCents: bidCents, offerStatus: 'pending', offerUpdatedAt: new Date().toISOString() } : {}) },
           permissions: [Permission.read(Role.user(caller.$id)), Permission.read(Role.user(job.employerId))],
         })
+        if (hasBid) {
+          await notify(db, { userId: job.employerId, type: 'offer', title: 'New offer: ' + job.title, body: String(caller.name || 'A worker') + ' offered $' + (bidCents / 100).toFixed(2) + '/hr (posted $' + (Number(job.payRateCents) / 100).toFixed(2) + '/hr). Open Jobs to respond within 72 hours.', link: '/dashboard/jobs' })
+        }
       }
       return res.status(200).json({ ok: true })
     }
@@ -78,6 +106,23 @@ export default async function handler(req: any, res: any) {
       const application: any = await db.getRow({ databaseId: DB_ID, tableId: 'applications', rowId: body.applicationId })
       const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: application.jobId })
       if (job.employerId !== caller.$id) return res.status(403).json({ error: 'Only the job owner can hire' })
+      if (offerExpired(application)) {
+        await db.updateRow({ databaseId: DB_ID, tableId: 'applications', rowId: application.$id, data: { offerStatus: 'expired' } })
+        application.offerStatus = 'expired'
+      }
+      if (application.offerStatus === 'countered') return res.status(400).json({ error: 'Waiting for the worker to answer your counter-offer' })
+      let agreedRateCents = Number(job.payRateCents) > 0 ? Number(job.payRateCents) : 0
+      let nextStatus = ''
+      if (application.offerStatus === 'pending') {
+        if (body.useProposal === true) {
+          agreedRateCents = Number(application.proposedRateCents)
+          const badRate = checkBid(job, agreedRateCents)
+          if (badRate) return res.status(400).json({ error: badRate })
+          nextStatus = 'accepted'
+        } else {
+          nextStatus = 'declined'
+        }
+      }
       const existing = await db.listRows({
         databaseId: DB_ID,
         tableId: 'hires',
@@ -88,11 +133,61 @@ export default async function handler(req: any, res: any) {
           databaseId: DB_ID,
           tableId: 'hires',
           rowId: ID.unique(),
-          data: { jobId: job.$id, workerId: application.workerId, employerId: caller.$id, applicationId: application.$id },
+          data: { jobId: job.$id, workerId: application.workerId, employerId: caller.$id, applicationId: application.$id, ...(agreedRateCents > 0 ? { agreedRateCents } : {}) },
           permissions: [Permission.read(Role.user(application.workerId)), Permission.read(Role.user(caller.$id)), Permission.read(Role.label('admin'))],
         })
-        await notify(db, { userId: application.workerId, type: 'hired', title: 'You were hired: ' + job.title, body: 'Open Jobs to confirm your shift and see the details.', link: '/dashboard/jobs' })
+        await notify(db, { userId: application.workerId, type: 'hired', title: 'You were hired: ' + job.title, body: (agreedRateCents > 0 ? 'Agreed rate: $' + (agreedRateCents / 100).toFixed(2) + '/hr. ' : '') + 'Open Jobs to confirm your shift and see the details.', link: '/dashboard/jobs' })
+        if (nextStatus) await db.updateRow({ databaseId: DB_ID, tableId: 'applications', rowId: application.$id, data: { offerStatus: nextStatus, offerUpdatedAt: new Date().toISOString() } })
       }
+      if (job.reopenedAt) await db.updateRow({ databaseId: DB_ID, tableId: 'jobs', rowId: job.$id, data: { reopenedAt: null } })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'offer_counter' || body.type === 'offer_decline') {
+      const application: any = await db.getRow({ databaseId: DB_ID, tableId: 'applications', rowId: String(body.applicationId || '') })
+      const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: application.jobId })
+      if (job.employerId !== caller.$id) return res.status(403).json({ error: 'Only the job owner can answer offers' })
+      if (application.offerStatus !== 'pending' || offerExpired(application)) return res.status(400).json({ error: 'There is no active offer to answer' })
+      const nowIso = new Date().toISOString()
+      if (body.type === 'offer_decline') {
+        await db.updateRow({ databaseId: DB_ID, tableId: 'applications', rowId: application.$id, data: { offerStatus: 'declined', offerUpdatedAt: nowIso } })
+        await notify(db, { userId: application.workerId, type: 'offer', title: 'Offer declined: ' + job.title, body: 'The employer declined your rate. You can still be hired at the posted rate.', link: '/dashboard/jobs' })
+        return res.status(200).json({ ok: true })
+      }
+      const counterCents = Math.round(Number(body.counterRate) * 100)
+      const badCounter = checkBid(job, counterCents)
+      if (badCounter) return res.status(400).json({ error: badCounter })
+      await db.updateRow({ databaseId: DB_ID, tableId: 'applications', rowId: application.$id, data: { counterRateCents: counterCents, offerStatus: 'countered', offerUpdatedAt: nowIso } })
+      await notify(db, { userId: application.workerId, type: 'offer', title: 'Counter-offer: ' + job.title, body: 'The employer countered at $' + (counterCents / 100).toFixed(2) + '/hr. Open Jobs to accept or decline within 72 hours.', link: '/dashboard/jobs' })
+      return res.status(200).json({ ok: true })
+    }
+
+    if (body.type === 'offer_respond') {
+      const application: any = await db.getRow({ databaseId: DB_ID, tableId: 'applications', rowId: String(body.applicationId || '') })
+      if (application.workerId !== caller.$id) return res.status(403).json({ error: 'Not your application' })
+      if (application.offerStatus !== 'countered' || offerExpired(application)) return res.status(400).json({ error: 'This counter-offer is no longer available' })
+      const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: application.jobId })
+      const nowIso = new Date().toISOString()
+      if (body.accept !== true) {
+        await db.updateRow({ databaseId: DB_ID, tableId: 'applications', rowId: application.$id, data: { offerStatus: 'declined', offerUpdatedAt: nowIso } })
+        await notify(db, { userId: job.employerId, type: 'offer', title: 'Counter-offer declined: ' + job.title, body: 'The worker declined your counter-offer.', link: '/dashboard/jobs' })
+        return res.status(200).json({ ok: true })
+      }
+      const counterCents = Number(application.counterRateCents)
+      const badRate = checkBid(job, counterCents)
+      if (badRate) return res.status(400).json({ error: badRate })
+      const already = await db.listRows({ databaseId: DB_ID, tableId: 'hires', queries: [Query.equal('applicationId', application.$id), Query.limit(1)] })
+      if (already.total === 0) {
+        await db.createRow({
+          databaseId: DB_ID,
+          tableId: 'hires',
+          rowId: ID.unique(),
+          data: { jobId: job.$id, workerId: application.workerId, employerId: job.employerId, applicationId: application.$id, agreedRateCents: counterCents },
+          permissions: [Permission.read(Role.user(application.workerId)), Permission.read(Role.user(job.employerId)), Permission.read(Role.label('admin'))],
+        })
+        await notify(db, { userId: job.employerId, type: 'offer', title: 'Counter-offer accepted: ' + job.title, body: 'The worker accepted $' + (counterCents / 100).toFixed(2) + '/hr and is now hired.', link: '/dashboard/jobs' })
+      }
+      await db.updateRow({ databaseId: DB_ID, tableId: 'applications', rowId: application.$id, data: { offerStatus: 'accepted', offerUpdatedAt: nowIso } })
       if (job.reopenedAt) await db.updateRow({ databaseId: DB_ID, tableId: 'jobs', rowId: job.$id, data: { reopenedAt: null } })
       return res.status(200).json({ ok: true })
     }
@@ -465,7 +560,13 @@ export default async function handler(req: any, res: any) {
       if (log.employerId !== caller.$id) return res.status(403).json({ error: 'Only the employer can approve this shift' })
       if (log.status !== 'done') return res.status(400).json({ error: 'Shift is not ready to approve' })
       const job: any = await db.getRow({ databaseId: DB_ID, tableId: 'jobs', rowId: log.jobId })
-      const rate = Number(job.payRateCents)
+      const hireRows = await db.listRows({
+        databaseId: DB_ID,
+        tableId: 'hires',
+        queries: [Query.equal('jobId', log.jobId), Query.equal('workerId', log.workerId), Query.limit(10)],
+      })
+      const activeHire: any = (hireRows.rows as any[]).find((h) => !h.replacedAt) || (hireRows.rows as any[])[0]
+      const rate = activeHire && Number(activeHire.agreedRateCents) > 0 ? Number(activeHire.agreedRateCents) : Number(job.payRateCents)
       if (!Number.isFinite(rate) || rate <= 0) return res.status(400).json({ error: 'This job has no pay rate set' })
       const MANAGED_MARKUP_RATE = 0.30
       const feeRate = job.isManaged ? MANAGED_MARKUP_RATE : (FEE_RATES[job.industry] ?? 0.10)
@@ -510,6 +611,7 @@ export default async function handler(req: any, res: any) {
           return res.status(403).json({ error: 'Jobs in ' + state + ' require verified business entity (LLC/Corp) status. Submit your EIN under Business verification.' })
         }
       }
+      if (body.data && body.data.isManaged) body.data.openToOffers = false
       const ss = body.data?.shiftStart
       const se = body.data?.shiftEnd
       if ((ss != null && isNaN(new Date(ss).getTime())) || (se != null && isNaN(new Date(se).getTime()))) return res.status(400).json({ error: 'Invalid shift time' })
